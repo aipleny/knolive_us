@@ -1,6 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('ko-KR').format(n||0)+'원';
 const mk=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e};
+let updateCompletionRecorded=false,updateRequestedHere=false,updateSeen=false,loadedUpdateVersion='';
 let data=null,tab='orders',exportRows=[],exportHeaders=[],productRows=[];
 let detailStore='',productStore='',mainStore='',detailMonth='';
 let rangeMode='month',rangeStart='',rangeEnd='';
@@ -12,7 +13,7 @@ const rangeLabel=()=>`${rangeStart} ~ ${rangeEnd}`;
 async function load(){try{const r=await fetch('/api/data');if(!r.ok)throw Error('보고서를 읽을 수 없습니다.');data=await r.json();render();}catch(e){$('error').textContent=e.message;}}
 function render(){syncMonthButtons();if(!data)return;
  $('error').textContent=data.last_error||'';
- $('update-ui').disabled=!!data.read_only||!!data.updating;$('update-ui').textContent=data.updating?'업데이트 중…':'화면 업데이트';$('update-status').textContent=data.update_message||'';
+ $('update-ui').disabled=!!data.read_only||!!data.updating;$('update-ui').textContent=data.updating?'업데이트 중…':'화면 업데이트';renderUpdateStatus();
  const allStores=[...new Set(data.orders.filter(business).map(o=>name(o.address_id)))].sort((a,b)=>a.localeCompare(b,'ko'));
  if(!allStores.includes(mainStore))mainStore='';
  $('main-store').replaceChildren(new Option('전체 매장',''),...allStores.map(store=>new Option(store,store)));$('main-store').value=mainStore;
@@ -57,8 +58,22 @@ function render(){syncMonthButtons();if(!data)return;
  if(tab==='stores'){const groups=new Map();for(const o of data.orders){if(!groups.has(o.address_id))groups.set(o.address_id,o);}table(['주소 번호','마스킹된 배송지','수취인','분류 근거','매장 이름'],[...groups.values()].map(o=>[o.address_id,o.address,o.recipient,({'matched':'자동 규칙 일치','manual':'직접 지정','ambiguous':'규칙 충돌'}[data.classification?.[o.address_id]?.status]||'미분류'),name(o.address_id)]));let i=0;for(const o of groups.values()){const td=$('tbody').children[i++].lastChild;td.replaceChildren();const input=mk('input');input.value=names()[o.address_id]||'';input.placeholder='예: 송도점';input.maxLength=80;input.disabled=!!data.read_only;const save=mk('button','저장');save.disabled=!!data.read_only;save.onclick=async()=>{try{await post('/api/stores',{address_id:o.address_id,name:input.value});await load();}catch(e){$('error').textContent=e.message;}};td.append(input,save);}$('table-note').textContent='수취인 첫·끝 글자와 주소 규칙으로 자동 분류합니다. 같은 이름은 합산되며, 직접 저장한 이름이 자동 규칙보다 우선합니다. 빈칸으로 저장하면 자동 규칙으로 돌아갑니다.';}}
 function table(headers,rows){exportHeaders=headers;exportRows=rows;$('thead').replaceChildren();const tr=mk('tr');headers.forEach(h=>tr.append(mk('th',h)));$('thead').append(tr);$('tbody').replaceChildren();for(const row of rows){const tr=mk('tr');row.forEach(v=>tr.append(mk('td',v??'')));$('tbody').append(tr);}if(!rows.length){const tr=mk('tr'),td=mk('td','표시할 데이터가 없습니다.');td.colSpan=headers.length;tr.append(td);$('tbody').append(tr);}}
 async function post(url,body={}){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':data.csrf_token},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw Error(result.error||'요청 실패');return result;}
-$('update-ui').onclick=async()=>{try{await post('/api/update');await load();}catch(e){$('error').textContent=e.message;}};
+$('update-ui').onclick=async()=>{updateRequestedHere=true;updateCompletionRecorded=false;$('reload-status').textContent='';try{await post('/api/update');await load();}catch(e){$('error').textContent=e.message;}};
 $('reload-ui').onclick=()=>location.reload();
+function renderUpdateStatus(){
+ const message=data.update_message||'',match=message.match(/^적용 완료 \(([0-9a-f]+)\)/);
+ if(!updateSeen){updateSeen=true;if(match&&!updateRequestedHere)loadedUpdateVersion=match[1];}
+ if(data.updating){$('update-status').textContent='업데이트 중…';$('reload-status').textContent='';return;}
+ if(!match){$('update-status').textContent=message;$('reload-status').textContent='';return;}
+ const version=match[1],key='coupang-update-applied-'+version;
+ let applied;try{applied=localStorage.getItem(key);}catch(e){}
+ if((updateRequestedHere&&!updateCompletionRecorded)||!applied||!Number.isFinite(Date.parse(applied))){applied=new Date().toISOString();try{localStorage.setItem(key,applied);}catch(e){}}
+ updateCompletionRecorded=true;
+ const time=new Date(applied).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+ $('update-status').textContent=`적용 완료 (${time})`;
+ $('reload-status').textContent=!updateRequestedHere&&loadedUpdateVersion===version?'최신 버전':'새로고침 필요';
+}
+
 $('refresh').onclick=async()=>{try{await post('/api/refresh');await load();}catch(e){$('error').textContent=e.message;}};
 function recentMonths(now=new Date()){
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit'}).formatToParts(now);
