@@ -47,7 +47,7 @@ function render(){syncMonthButtons();if(!data)return;
  const ignored=monthOrders.filter(o=>!business(o));
  $('scope-note').textContent=`텐즈힐·기타분류·미분류 ${ignored.length}건 제외 · 금액 대조 오류 ${orders.length-valid.length}건 제외. 미분류 배송지는 아래 매장 이름 지정에서 확인할 수 있습니다.`;
  const dates=data.orders.map(o=>o.date).sort();$('notice').textContent=dates.length?`현재 주문 자료: ${dates[0]} ~ ${dates.at(-1)}. 메일 수집과 취소 연결 검토가 끝나기 전까지 매입합계는 잠정 금액입니다. 확인 주문이 없는 달의 0원은 실제 매입이 없다는 뜻이 아닙니다.`:'아직 주문 자료가 없습니다. 메일을 수집해 주세요.';
- $('updated').textContent=data.updated_at?'보고서 갱신: '+new Date(data.updated_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'보고서 미생성';$('refresh').disabled=data.refreshing||!data.can_collect||data.read_only;$('refresh').textContent=data.refreshing?'메일 수집 중…':data.read_only?'외부에서는 조회만 가능':'새 메일 수집';$('log').textContent=(data.log_tail||[]).join('\n')||'실행 기록이 없습니다.';
+ $('updated').textContent=data.updated_at?'보고서 갱신: '+new Date(data.updated_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'보고서 미생성';$('refresh').disabled=data.refreshing||!data.can_collect||data.read_only;$('refresh').textContent=data.refreshing?'메일 수집 중…':data.read_only?'외부에서는 조회만 가능':'지금 메일 수집';$('log').textContent=(data.log_tail||[]).join('\n')||'실행 기록이 없습니다.';
  const products=new Map();for(const o of valid.filter(o=>!productStore||name(o.address_id)===productStore))for(const i of o.items){const key=i.product.trim().replace(/\s+/g,' ');const row=products.get(key)||{product:key,quantity:0,amount:0,orders:new Set(),stores:new Set(),review:false};row.quantity+=i.quantity;row.amount+=i.line_amount;row.orders.add(o.order_key);row.stores.add(name(o.address_id));row.review ||= !!o.cancel_sources.length;products.set(key,row);}
  const query=$('search').value.trim().toLowerCase();productRows=[...products.values()].filter(p=>p.product.toLowerCase().includes(query)).sort((a,b)=>b.amount-a.amount).map(p=>[p.product,p.quantity,p.amount,p.orders.size,[...p.stores].sort().join(', '),p.review?'취소 연결 검토 필요':'—']);
  $('product-count').textContent=`${productStore||mainStore||'전체 사업장'} · ${productRows.length}개 제품 · 같은 상품명·규격 합산`;
@@ -71,11 +71,11 @@ function seoulToday(now=new Date()){
  return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');
 }
 function monthRange(month){const [y,m]=month.split('-').map(Number);return [month+'-01',new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)];}
-function presetRange(mode){const today=seoulToday();if(mode==='today')return [today,today];if(mode==='month')return monthRange(today.slice(0,7));
+function presetRange(mode){const today=seoulToday();if(/^last(3|6|12)$/.test(mode)){const [year,month]=today.split('-').map(Number);return [new Date(Date.UTC(year,month-Number(mode.slice(4)),1)).toISOString().slice(0,10),today];}if(mode==='today')return [today,today];if(mode==='month')return monthRange(today.slice(0,7));
  const day=new Date(today+'T00:00:00Z');day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);const start=day.toISOString().slice(0,10);day.setUTCDate(day.getUTCDate()+6);return [start,day.toISOString().slice(0,10)];
 }
 function syncMonthButtons(){
- if(['month','week','today'].includes(rangeMode))[rangeStart,rangeEnd]=presetRange(rangeMode);
+ if(['month','week','today','last3','last6','last12'].includes(rangeMode))[rangeStart,rangeEnd]=presetRange(rangeMode);
  const group=$('recent-months');group.replaceChildren();
  for(const month of recentMonths()){const b=mk('button',month.replace('-','년 ')+'월');b.dataset.month=month;b.type='button';const [start,end]=monthRange(month),active=rangeStart===start&&rangeEnd===end;b.setAttribute('aria-pressed',String(active));b.classList.toggle('active',active);b.onclick=()=>{rangeMode='fixed';rangeStart=start;rangeEnd=end;render();};group.append(b);}
  for(const b of document.querySelectorAll('[data-period]')){const active=rangeMode===b.dataset.period;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));}
