@@ -13,7 +13,7 @@ const rangeLabel=()=>`${rangeStart} ~ ${rangeEnd}`;
 async function load(){try{const r=await fetch('/api/data');if(!r.ok)throw Error('보고서를 읽을 수 없습니다.');data=await r.json();render();}catch(e){$('error').textContent=e.message;}}
 function render(){syncMonthButtons();if(!data)return;
  $('error').textContent=data.last_error||'';
- $('update-ui').disabled=!!data.read_only||!!data.updating;$('update-ui').textContent=data.updating?'업데이트 중…':'화면 업데이트';renderUpdateStatus();
+ $('update-ui').disabled=!!data.read_only||!!data.updating;$('update-ui').textContent=data.updating?'업데이트 중…':'화면 업데이트';renderUpdateStatus();renderMailAudit();
  const allStores=[...new Set(data.orders.filter(business).map(o=>name(o.address_id)))].sort((a,b)=>a.localeCompare(b,'ko'));
  if(!allStores.includes(mainStore))mainStore='';
  $('main-store').replaceChildren(new Option('전체 매장',''),...allStores.map(store=>new Option(store,store)));$('main-store').value=mainStore;
@@ -60,6 +60,20 @@ function table(headers,rows){exportHeaders=headers;exportRows=rows;$('thead').re
 async function post(url,body={}){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':data.csrf_token},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw Error(result.error||'요청 실패');return result;}
 $('update-ui').onclick=async()=>{updateRequestedHere=true;updateCompletionRecorded=false;setReloadState(false);try{await post('/api/update');await load();}catch(e){$('error').textContent=e.message;}};
 $('reload-ui').onclick=()=>location.reload();
+function renderMailAudit(){
+ const a=data.mail_audit,b=$('audit-run');b.disabled=!data.audit_supported||data.auditing||data.read_only;
+ b.textContent=data.auditing?'메일 대조 중…':'전체 메일 대조';
+ if(!data.audit_supported){$('audit-status').textContent='메일 검증 기능 설치 후 사용할 수 있습니다.';return;}
+ if(!a){$('audit-status').textContent='아직 검증하지 않았습니다. 전체 메일 대조를 눌러주세요.';return;}
+ const completed=a.finished_at?new Date(a.finished_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'';
+ $('audit-status').textContent=(data.auditing?a.status:!a.finished_at?'검증 중단 · 다시 실행해주세요':a.status)+(completed?' · '+completed:'');
+ $('audit-totals').textContent=`서버 고유 메일 ${a.server_unique||0}개 · 저장 확인 ${a.saved_unique||0}개 · 누락 ${a.missing_unique||0}개 · 중복 출현 ${a.duplicate_occurrences??'검증 중'}`;
+ $('audit-scope').textContent=a.error||(!a.finished_at?'전체 본문을 읽어 대조하므로 메일 수에 따라 시간이 걸립니다. 현재 수치는 중간 결과입니다.':a.coverage_complete?'검증한 두 메일함의 검색 대상은 모두 저장되어 있습니다. 다른 폴더와 웹검색 전체의 완전성을 뜻하지는 않습니다.':a.complete?'누락된 메일이 있습니다. 아래 결과로 수집 범위를 확인하세요.':'확인 실패가 있어 전체 수집 여부를 판정할 수 없습니다.');
+ fillTable('audit-head','audit-body',['메일함','폴더 전체','쿠팡 TEXT 검색','수집 검색 대상','대조 완료','저장 확인','누락','읽기 실패','상태'],(a.folders||[]).map(r=>[r.folder,r.mailbox_total,r.text_matches??'전체 수집',r.matched,r.checked,r.saved,r.missing,r.failed,r.status]),-1);
+ const local=a.local;if(local){$('audit-local').textContent=`검증 시작 시 저장 파일 ${local.files}개 · 중복 제거 ${local.unique}개 · 읽기 실패 ${local.read_errors}개 · ${local.first||'날짜 없음'} ~ ${local.last||'날짜 없음'} · `+Object.entries(local.categories).map(([k,v])=>`${k} ${v}개`).join(' / ')+` · 집계 보고서 주문 ${data.orders.length}건, 취소 안내 ${data.cancellations.length}건`;
+ fillTable('audit-month-head','audit-month-body',['수신 월','저장된 고유 메일 수'],Object.entries(local.months),-1);}
+}
+$('audit-run').onclick=async()=>{try{await post('/api/audit');await load();}catch(e){$('error').textContent=e.message;}};
 function setReloadState(latest,applied=false){
  const button=$('reload-ui');button.textContent=latest?'최신 버전':'화면 새로고침';
  button.classList.toggle('needs-reload',applied&&!latest);
