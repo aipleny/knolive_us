@@ -58,20 +58,30 @@ function render(){syncMonthButtons();if(!data)return;
  if(tab==='stores'){const groups=new Map();for(const o of data.orders){if(!groups.has(o.address_id))groups.set(o.address_id,o);}table(['주소 번호','마스킹된 배송지','수취인','분류 근거','매장 이름'],[...groups.values()].map(o=>[o.address_id,o.address,o.recipient,({'matched':'자동 규칙 일치','manual':'직접 지정','ambiguous':'규칙 충돌'}[data.classification?.[o.address_id]?.status]||'미분류'),name(o.address_id)]));let i=0;for(const o of groups.values()){const td=$('tbody').children[i++].lastChild;td.replaceChildren();const input=mk('input');input.value=names()[o.address_id]||'';input.placeholder='예: 송도점';input.maxLength=80;input.disabled=!!data.read_only;const save=mk('button','저장');save.disabled=!!data.read_only;save.onclick=async()=>{try{await post('/api/stores',{address_id:o.address_id,name:input.value});await load();}catch(e){$('error').textContent=e.message;}};td.append(input,save);}$('table-note').textContent='수취인 첫·끝 글자와 주소 규칙으로 자동 분류합니다. 같은 이름은 합산되며, 직접 저장한 이름이 자동 규칙보다 우선합니다. 빈칸으로 저장하면 자동 규칙으로 돌아갑니다.';}}
 function table(headers,rows){exportHeaders=headers;exportRows=rows;$('thead').replaceChildren();const tr=mk('tr');headers.forEach(h=>tr.append(mk('th',h)));$('thead').append(tr);$('tbody').replaceChildren();for(const row of rows){const tr=mk('tr');row.forEach(v=>tr.append(mk('td',v??'')));$('tbody').append(tr);}if(!rows.length){const tr=mk('tr'),td=mk('td','표시할 데이터가 없습니다.');td.colSpan=headers.length;tr.append(td);$('tbody').append(tr);}}
 async function post(url,body={}){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':data.csrf_token},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw Error(result.error||'요청 실패');return result;}
-$('update-ui').onclick=async()=>{updateRequestedHere=true;updateCompletionRecorded=false;$('reload-status').textContent='';try{await post('/api/update');await load();}catch(e){$('error').textContent=e.message;}};
+$('update-ui').onclick=async()=>{updateRequestedHere=true;updateCompletionRecorded=false;setReloadState(false);try{await post('/api/update');await load();}catch(e){$('error').textContent=e.message;}};
 $('reload-ui').onclick=()=>location.reload();
+function setReloadState(latest,applied=false){
+ const button=$('reload-ui');button.textContent=latest?'최신 버전':'화면 새로고침';
+ button.classList.toggle('needs-reload',applied&&!latest);
+ button.classList.toggle('is-latest',latest);
+ button.setAttribute('aria-label',latest?'최신 버전 · 화면 다시 불러오기':applied?'새 버전 적용을 위해 화면 새로고침':'화면 새로고침');
+}
 function renderUpdateStatus(){
+ $('update-status').classList.remove('version-label');
  const message=data.update_message||'',match=message.match(/^적용 완료 \(([0-9a-f]+)\)/);
  if(!updateSeen){updateSeen=true;if(match&&!updateRequestedHere)loadedUpdateVersion=match[1];}
- if(data.updating){$('update-status').textContent='업데이트 중…';$('reload-status').textContent='';return;}
- if(!match){$('update-status').textContent=message;$('reload-status').textContent='';return;}
+ if(data.updating){$('update-status').textContent='업데이트 중…';setReloadState(false);return;}
+ if(!match){$('update-status').textContent=message;setReloadState(false);return;}
  const version=match[1],key='coupang-update-applied-'+version;
  let applied;try{applied=localStorage.getItem(key);}catch(e){}
  if((updateRequestedHere&&!updateCompletionRecorded)||!applied||!Number.isFinite(Date.parse(applied))){applied=new Date().toISOString();try{localStorage.setItem(key,applied);}catch(e){}}
  updateCompletionRecorded=true;
- const time=new Date(applied).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
- $('update-status').textContent=`적용 완료 (${time})`;
- $('reload-status').textContent=!updateRequestedHere&&loadedUpdateVersion===version?'최신 버전':'새로고침 필요';
+ const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',year:'2-digit',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(applied));
+ const part=type=>parts.find(p=>p.type===type).value;
+ $('update-status').classList.add('version-label');
+ $('update-status').textContent=`Ver.${part('year')}${part('month')}${part('day')}T${part('hour')}${part('minute')}`;
+ setReloadState(!updateRequestedHere&&loadedUpdateVersion===version,true);
+
 }
 
 $('refresh').onclick=async()=>{try{await post('/api/refresh');await load();}catch(e){$('error').textContent=e.message;}};

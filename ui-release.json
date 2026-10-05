@@ -1,8 +1,8 @@
 {
   "api_version": 1,
   "sha256": {
-    "style.css": "00caf2a11b789c6de2ab62bb88b15d8fa102ff6ff52dbb39a4298ee6d4f161a9",
-    "index.html": "e9dfc5ad884efe81f3a2219d21575daa5b4881b28eaef1139041d01f17e4e7a5",
-    "app.js": "e6716198cff10c0139c70f58d70867f1d8ab397274114ff844e9fa633e5a877b"
+    "style.css": "9c13045989323b487410f5d59d2c39a8577d3eef0a2a2bb26b2ae32bcbc3b253",
+    "index.html": "53834bd93ef113177763f5fc3ef3362bcbe5d7ac93e21cf2d74d3bb8f25b0563",
+    "app.js": "2a693767430b9c84343da9099fe8b25f5e103f63cc297bf9b53365c0b2ded5f4"
   }
 }
