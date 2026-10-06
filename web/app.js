@@ -92,3 +92,8 @@ $('detail-file').onchange=async()=>{const file=$('detail-file').files[0];if(!fil
 $('import-form').onsubmit=async e=>{e.preventDefault();if(!$('import-confirm').checked)return;$('import-apply').disabled=true;try{await detailPost('/api/detail-apply',{preview:detailPreview,currency:$('import-currency').value,amount:$('import-amount').value.trim(),quantity:$('import-quantity').value?Number($('import-quantity').value):null,summary:$('import-summary').value});$('import-dialog').close();await load();}catch(e){$('import-error').textContent=e.message;}finally{$('import-apply').disabled=false;}};
 
 $('batch-queue').onclick=()=>{const ids=data.orders.map(o=>o.order_id);if(!ids.length){$('error').textContent='메일을 먼저 가져오세요.';return;}const url=URL.createObjectURL(new Blob([JSON.stringify({schema:'amazon-order-queue-v1',order_ids:ids})],{type:'application/json'}));const a=mk('a');a.href=url;a.download='amazon-order-queue.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+
+let amazonExtensionReady=false;
+window.addEventListener('amazon-extension-ready',()=>{amazonExtensionReady=true;});
+window.dispatchEvent(new CustomEvent('amazon-extension-check'));
+$('direct-batch').onclick=()=>{if(!amazonExtensionReady){$('error').textContent='엣지 확장프로그램을 1.2.0으로 업데이트하고 이 화면을 새로고침하세요.';return;}if(!data?.batch_import_supported){$('error').textContent='일괄 수집 설치 파일을 먼저 실행하세요.';return;}window.dispatchEvent(new CustomEvent('amazon-start-batch'));};
