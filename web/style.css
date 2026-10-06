@@ -3,3 +3,5 @@
 .header-controls{display:flex;flex-direction:column;gap:14px;align-items:flex-end}.update-actions{gap:12px}.update-actions>div{display:flex;flex-direction:column;min-width:150px}.update-actions button{background:transparent;color:#ffe0b3;border-color:#a48266}#update-status{font-size:12px;max-width:220px;margin:8px 0 0;line-height:1.6}#update-status.version-label{white-space:nowrap;font-variant-numeric:tabular-nums}#update-status:empty{display:none}#reload-ui.needs-reload{background:#c4510b;color:#fff;border-color:#ffba75;box-shadow:0 0 0 2px #ffba7555}#reload-ui.is-latest{color:#ffd4a5}@media(max-width:760px){.header-controls{align-items:flex-start}}
 
 .month-card .original-won,.cards article .original-won{font-size:12px;line-height:1.6;font-weight:400}.month-card strong{margin-bottom:8px}.month-card p{margin:8px 0 16px}
+
+.combined-total{border-top:1px solid #d7dfe5;margin-top:18px;padding-top:16px}.combined-total p{font-size:12px;line-height:1.6}.month-card:hover .combined-total,.month-card.active .combined-total{border-color:#ffffff66}.cards .won-amount{font-size:27px;font-weight:700}

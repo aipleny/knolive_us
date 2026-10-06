@@ -24,9 +24,14 @@ function render(){if(!data)return;renderUpdateStatus();$('update-ui').disabled=!
 }
 function appendPurchaseAmounts(card,rows){
  const usd=rows.filter(o=>o.currency==='USD'||o.currency==='$ (통화 미확인)'),won=rows.filter(o=>o.currency==='KRW');
- card.append(mk('strong',usd.length?money(usd.reduce((sum,o)=>sum+net(o),0),'USD'):'USD 금액 미확인'));
+ const usdTotal=usd.reduce((sum,o)=>sum+net(o),0),wonTotal=won.reduce((sum,o)=>sum+net(o),0);
+ const converted=usd.filter(o=>o.krw_converted!=null),missing=usd.length-converted.length,convertedTotal=converted.reduce((sum,o)=>sum+o.krw_converted,0);
+ card.append(mk('span','USD 주문 · 환불 반영'),mk('strong',money(usdTotal,'USD')));
  if(usd.length){appendKrw(card,usd);const refund=usd.reduce((s,o)=>s+(o.refund_minor||0),0);card.append(mk('p','주문 '+money(usd.reduce((s,o)=>s+o.amount_minor,0),'USD')+' − 환불 '+money(refund,'USD')));}
- if(won.length){const note=mk('p','원화 표시 주문 '+money(won.reduce((sum,o)=>sum+net(o),0),'KRW')+' · USD 합계 미포함');note.className='original-won';card.append(note);}
+ if(won.length){card.append(mk('span','원화 표시 주문 · 환불 반영'));const amount=mk('strong',money(wonTotal,'KRW'));amount.className='won-amount';card.append(amount);}
+ const total=mk('div');total.className='combined-total';total.append(mk('span',missing?'총합계 · 일부 환산 (KRW)':'총합계 (KRW)'));
+ total.append(mk('strong',converted.length||won.length||!usd.length?new Intl.NumberFormat('ko-KR').format(convertedTotal+wonTotal/100)+'원':'환산 대기'));
+ total.append(mk('p',missing?`USD ${missing}건 환율 미확인 · 해당 금액 제외`:'USD 환산액 + 원화 표시 주문액'));card.append(total);
 }
 function appendKrw(card,rows){const converted=rows.filter(o=>o.krw_converted!=null),missing=rows.length-converted.length;card.append(mk('p',converted.length?'≈ '+new Intl.NumberFormat('ko-KR').format(converted.reduce((s,o)=>s+o.krw_converted,0))+'원'+(missing?' (일부 환산)':''):'원화 환산 대기'));if(missing)card.append(mk('span','환율 미확인 '+missing+'건'));}
 function table(id,rows,cols){$(id).replaceChildren();for(const row of rows){const tr=mk('tr');row.forEach(v=>tr.append(mk('td',v)));$(id).append(tr);}if(!rows.length){const tr=mk('tr'),td=mk('td','표시할 내역이 없습니다.');td.colSpan=cols;tr.append(td);$(id).append(tr);}}
