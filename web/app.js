@@ -18,9 +18,20 @@ function render(){if(!data)return;renderUpdateStatus();$('update-ui').disabled=!
  $('months').replaceChildren();for(const [month,rows] of [...months].sort((a,b)=>b[0].localeCompare(a[0]))){const card=mk('button');card.type='button';card.className='month-card';card.dataset.month=month;card.classList.toggle('active',selectedMonth===month);card.append(mk('h3',month));appendPurchaseAmounts(card,rows);card.append(mk('span',rows.length+'건'));card.onclick=()=>{selectedMonth=month;selectedCurrency='';render();$('list-title').scrollIntoView({behavior:'smooth'});};$('months').append(card);}
  visible=orders.filter(o=>!selectedMonth||o.date.startsWith(selectedMonth));$('list-title').textContent=(selectedMonth||'선택 기간 전체')+' 구매 목록';
  table('rows',visible.map(o=>[o.date,o.summary||'제품 상세 미확인',o.quantity??'미확인',money(o.amount_minor,o.currency),money(o.refund_minor||0,o.currency),money(net(o),o.currency),o.currency,o.krw_converted==null?'—':new Intl.NumberFormat('ko-KR').format(o.krw_converted)+'원',o.fx_rate||'—',o.fx_date||'—',o.order_id]),11);
+ for(const [index,order] of visible.entries()){const button=mk('button',order.order_id);button.type='button';button.className='order-link';button.setAttribute('aria-label',order.order_id+' 주문 상세 보기');button.setAttribute('aria-haspopup','dialog');button.onclick=()=>openOrderDetail(order);$('rows').children[index].lastElementChild.replaceChildren(button);}
  const events=(data.events||[]).filter(e=>(!$('event-type').value||e.type===$('event-type').value)&&(!e.date||(e.date>=rangeStart&&e.date<=rangeEnd)));table('events',events.map(e=>[e.date,eventNames[e.type]||e.type,e.order_id||'미확인',e.amount_minor==null?'—':money(e.amount_minor,e.currency),e.status,e.issues.join(' / ')]),6);$('event-counts').textContent=Object.entries(data.mail_types||{}).map(([type,n])=>(eventNames[type]||type)+' '+n+'개').join(' · ');
  table('reviews',data.review.map(o=>[o.date,o.order_id,o.issues.join(' / ')]),3);$('review-title').textContent='검토 필요 · '+data.review.length+'건 (전체 기간)';
  $('counts').textContent=`저장 파일 ${data.files}개 · 집계 주문 ${data.orders.length}건 · 동일 주문 중복 ${data.duplicate_orders||0}건 · 조건 제외 ${data.excluded||0}건 · 파싱 실패 ${data.parse_failures||0}건`;
+}
+function openOrderDetail(order){
+ $('order-detail-title').textContent='주문 '+order.order_id;
+ $('detail-summary').textContent=order.summary||'제품 상세 미확인';
+ const fields=[['주문 안내일',order.date+' (한국 시간)'],['수취인',order.recipient||'미확인'],['배송지',order.address||'미확인'],['주문 수량',order.quantity??'미확인'],['메일 표시 통화',order.currency],['주문액',money(order.amount_minor,order.currency)],['반영된 환불액',money(order.refund_minor||0,order.currency)],['환불 반영액',money(net(order),order.currency)],['KRW 환산액',order.currency==='KRW'?'메일에 원화로 표시됨 · 별도 환산 없음':order.krw_converted==null?'환율 확인 필요':new Intl.NumberFormat('ko-KR').format(order.krw_converted)+'원'],['적용 환율',order.fx_rate?'1 USD = '+order.fx_rate+' KRW':'—'],['환율 공시일',order.fx_date||'—']];
+ $('detail-fields').replaceChildren();for(const [label,value] of fields){const group=mk('div');group.append(mk('dt',label),mk('dd',value));$('detail-fields').append(group);}
+ const link=$('amazon-order-link');link.hidden=!/^\d{3}-\d{7}-\d{7}$/.test(order.order_id);if(!link.hidden)link.href='https://www.amazon.com/gp/your-account/order-details?orderID='+encodeURIComponent(order.order_id);else link.removeAttribute('href');
+ const events=(data.events||[]).filter(e=>e.order_id===order.order_id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+ table('detail-events',events.map(e=>[e.date,eventNames[e.type]||e.type,e.subject,e.amount_minor==null?'—':money(e.amount_minor,e.currency),e.status,(e.issues||[]).join(' / ')]),6);
+ $('order-detail').showModal();
 }
 function appendPurchaseAmounts(card,rows){
  const usd=rows.filter(o=>o.currency==='USD'||o.currency==='$ (통화 미확인)'),won=rows.filter(o=>o.currency==='KRW');
