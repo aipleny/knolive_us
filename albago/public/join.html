@@ -1,0 +1,13 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>알바고 알바 가입</title></head><body>
+<header class="topbar"><a class="brand" href="/" style="color:#fff;text-decoration:none"><img src="/icon.svg" alt=""><div>알바고 <span class="sub">albago.kr</span></div></a><button class="lang-btn" type="button"></button></header>
+<main class="wrap"><form id="f" class="card login-box" style="max-width:480px">
+<h2 data-i18n="STAFF_JOIN"></h2><p class="muted" data-i18n="JOIN_HELP"></p>
+<div class="grid" style="margin-top:14px">
+<label class="f"><span data-i18n="STORE_CODE"></span><input id="storeCode" inputmode="numeric" required data-i18n-ph="BIZNO_PH"><small data-i18n="STORE_CODE_ASK"></small></label>
+<label class="f"><span data-i18n="NAME"></span><input id="name" required autocomplete="name"></label>
+<label class="f"><span data-i18n="MOBILE"></span><input id="phone" inputmode="tel" autocomplete="tel"></label>
+<label class="f"><span data-i18n="LOGIN_ID"></span><input id="loginId" required autocomplete="username"><small data-i18n="ID_RULE"></small></label>
+<label class="f"><span data-i18n="PASSWORD"></span><input id="pw" type="password" required autocomplete="new-password" minlength="8"></label>
+<button class="btn primary" data-i18n="JOIN_BTN"></button><p class="err" id="err"></p><p id="ok" class="infobox" hidden></p>
+<p class="muted" data-i18n="APP_NOTE"></p></div></form></main>
+<script src="/join.js"></script></body></html>

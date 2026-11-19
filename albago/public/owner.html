@@ -1,0 +1,89 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><script src="/docs.js" defer></script><script src="/owner.js" defer></script><title>알바고 사장님</title></head>
+<body>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바고 <span class="sub" id="store"></span></div></div>
+<div class="row"><a class="top-btn" href="#" id="kiosk-open" data-i18n="KIOSK_TITLE" style="text-decoration:none"></a><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
+<nav class="tabs" id="tabs">
+  <button data-tab="today" class="active" data-i18n="TAB_TODAY"></button><button data-tab="staff" data-i18n="TAB_STAFF"></button><button data-tab="schedule" data-i18n="TAB_SCHEDULE"></button><button data-tab="records" data-i18n="TAB_RECORDS"></button><button data-tab="payroll" data-i18n="TAB_PAYROLL"></button><button data-tab="contract" data-i18n="TAB_CONTRACT"></button><button data-tab="settings" data-i18n="TAB_SETTINGS"></button>
+</nav>
+<main class="wrap">
+  <section data-panel="today"></section><section data-panel="staff" hidden></section><section data-panel="schedule" hidden></section><section data-panel="records" hidden></section>
+  <section data-panel="payroll" hidden></section><section data-panel="contract" hidden></section><section data-panel="settings" hidden></section>
+</main>
+
+<dialog id="staff-dlg" style="max-width:min(900px,96vw)"><form id="staff-form"><div class="dlg-body" style="max-height:78vh;overflow:auto">
+  <div class="spread" style="margin-bottom:12px"><h2 id="staff-title"></h2><button type="button" class="btn ghost" data-close>✕</button></div>
+  <fieldset><legend data-i18n="FS_BASIC"></legend><div class="grid g3">
+    <label class="f"><span data-i18n="NAME"></span><input name="name" required></label>
+    <label class="f"><span data-i18n="MOBILE"></span><input name="phone" inputmode="tel"></label>
+    <label class="f"><span data-i18n="BIRTH"></span><input name="birth" type="date"></label>
+    <label class="f"><span data-i18n="GENDER"></span><select name="gender"><option value=""></option><option value="M" data-i18n="MALE"></option><option value="F" data-i18n="FEMALE"></option></select></label>
+    <label class="f" style="grid-column:span 2"><span data-i18n="ADDRESS"></span><input name="address"></label>
+  </div></fieldset>
+  <fieldset><legend data-i18n="FS_NATION"></legend>
+    <div class="row" style="margin-bottom:10px"><label class="chk"><input type="radio" name="nationality" value="KR" checked> <span data-i18n="KOREAN"></span></label><label class="chk"><input type="radio" name="nationality" value="FOREIGN"> <span data-i18n="FOREIGNER"></span></label></div>
+    <div class="grid g3" id="kr-fields"><label class="f"><span data-i18n="RRN"></span> <small id="rrn-now"></small><input name="rrn" autocomplete="off" placeholder="000000-0000000"></label></div>
+    <div class="grid g3" id="fr-fields" hidden>
+      <label class="f"><span data-i18n="COUNTRY"></span><input name="country"></label>
+      <label class="f"><span data-i18n="ALIEN_NO"></span> <small id="alien-now"></small><input name="alienNo" autocomplete="off"></label>
+      <label class="f"><span data-i18n="VISA"></span><input name="visa" list="visa-list" placeholder="D-2"></label>
+      <label class="f"><span data-i18n="VISA_EXPIRY"></span><input name="visaExpiry" type="date"></label>
+      <label class="f" style="grid-column:span 2"><span data-i18n="HOME_ADDRESS"></span><input name="homeAddress"></label>
+    </div>
+    <datalist id="visa-list"><option value="D-2"></option><option value="D-4"></option><option value="E-9"></option><option value="H-2"></option><option value="F-2"></option><option value="F-4"></option><option value="F-5"></option><option value="F-6"></option><option value="E-7"></option></datalist>
+    <p class="muted" data-i18n="PII_NOTE"></p>
+  </fieldset>
+  <fieldset><legend data-i18n="FS_EMERGENCY"></legend><div class="grid g3">
+    <label class="f"><span data-i18n="NAME"></span><input name="emergencyName"></label><label class="f"><span data-i18n="RELATION"></span><input name="emergencyRelation"></label><label class="f"><span data-i18n="PHONE"></span><input name="emergencyPhone" inputmode="tel"></label>
+  </div></fieldset>
+  <fieldset><legend data-i18n="FS_WORK"></legend><div class="grid g3">
+    <label class="f"><span data-i18n="WAGE"></span><input name="hourlyWage" type="number" min="0" step="10" required></label>
+    <label class="f"><span data-i18n="START_DATE"></span><input name="startDate" type="date"></label>
+    <label class="f"><span data-i18n="END_DATE"></span><input name="endDate" type="date"></label>
+    <label class="f"><span data-i18n="POSITION"></span><input name="position"></label>
+    <label class="f"><span data-i18n="HEALTH_CERT"></span><input name="healthCert" type="date"></label>
+    <label class="f"><span data-i18n="ALLOWANCE"></span><input name="monthlyAllowance" type="number" min="0" step="1000"></label>
+    <label class="f" style="grid-column:1/-1"><span data-i18n="JOB_DESC"></span><input name="jobDesc"></label>
+  </div><p class="muted" id="minwage-hint"></p></fieldset>
+  <fieldset><legend data-i18n="FS_PATTERN"></legend><p class="muted" data-i18n="PATTERN_HELP" style="margin-bottom:8px"></p><div id="pattern" class="grid" style="gap:6px"></div></fieldset>
+  <fieldset><legend data-i18n="FS_PAY"></legend><div class="grid g3">
+    <label class="f"><span data-i18n="DEDUCTION"></span><select name="deduction"><option value="none" data-i18n="DED_NONE"></option><option value="3.3" data-i18n="DED_33"></option><option value="insurance" data-i18n="DED_INS"></option></select></label>
+    <label class="f"><span data-i18n="NON_TAXABLE"></span><input name="nonTaxable" type="number" min="0" step="1000"></label>
+    <label class="f"><span data-i18n="INCOME_TAX"></span><input name="incomeTax" type="number" min="0" step="10"></label>
+    <label class="f"><span data-i18n="BANK"></span><input name="bank"></label><label class="f"><span data-i18n="ACCOUNT"></span> <small id="acct-now"></small><input name="account" autocomplete="off"></label><label class="f"><span data-i18n="HOLDER"></span><input name="accountHolder"></label>
+  </div>
+  <div id="ins-box" style="margin-top:10px"><p class="muted" data-i18n="INS_OVERRIDE_HELP"></p><div class="grid g4" style="margin-top:6px">
+    <label class="f"><span data-i18n="D_pension"></span><select name="ins_pension"></select></label><label class="f"><span data-i18n="D_health"></span><select name="ins_health"></select></label>
+    <label class="f"><span data-i18n="D_employment"></span><select name="ins_employment"></select></label><label class="f"><span data-i18n="D_industrial"></span><select name="ins_industrial"></select></label></div>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" name="durunuri"> <span data-i18n="DURUNURI_STAFF"></span></label></div>
+  </fieldset>
+  <fieldset><legend data-i18n="FS_ACCOUNT"></legend><div class="grid g3">
+    <label class="f"><span data-i18n="LOGIN_ID"></span><input name="loginId" autocomplete="off"></label>
+    <label class="f"><span data-i18n="NEW_PW"></span> <small data-i18n="PW_SET_HELP"></small><input name="password" type="password" autocomplete="new-password"></label>
+    <label class="f"><span data-i18n="KIOSK_PIN"></span> <small id="pin-hint"></small><input name="pin" inputmode="numeric" pattern="\d{4,6}" autocomplete="off"></label>
+    <label class="f"><span data-i18n="LANGUAGE"></span><select name="lang"><option value="ko">한국어</option><option value="en">English</option></select></label>
+    <label class="f"><span data-i18n="COLOR"></span><input name="color" type="color" value="#2459e0" style="height:44px;padding:4px"></label>
+    <label class="f" style="grid-column:1/-1"><span data-i18n="MEMO"></span><textarea name="memo"></textarea></label>
+  </div></fieldset>
+  <p class="err" id="staff-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn danger" id="staff-delete" data-i18n="DELETE"></button><button type="button" class="btn" id="staff-status"></button><span style="flex:1"></span><button type="button" class="btn" data-close data-i18n="CANCEL"></button><button class="btn primary" data-i18n="SAVE"></button></div></form></dialog>
+
+<dialog id="shift-dlg"><div class="dlg-body">
+  <h2 id="shift-title"></h2>
+  <div class="grid g2" style="margin-top:12px"><label class="f"><span data-i18n="START"></span><input type="time" id="sh-start"></label><label class="f"><span data-i18n="END"></span><input type="time" id="sh-end"></label></div>
+  <div style="margin-top:10px"><span class="muted" data-i18n="BREAK_TIMES"></span><div id="sh-breaks" class="grid" style="gap:6px;margin-top:6px"></div><button type="button" class="btn small" id="sh-add-brk" style="margin-top:6px" data-i18n="ADD_BREAK"></button></div>
+  <p class="err" id="sh-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn danger" id="sh-off" data-i18n="SET_OFF"></button><span style="flex:1"></span><button type="button" class="btn" data-close data-i18n="CANCEL"></button><button type="button" class="btn primary" id="sh-save" data-i18n="SAVE"></button></div></dialog>
+
+<dialog id="rec-dlg"><div class="dlg-body">
+  <h2 id="rec-title"></h2>
+  <div class="grid g2" style="margin-top:12px">
+    <label class="f"><span data-i18n="STAFF"></span><select id="rec-staff"></select></label><label class="f"><span data-i18n="WORK_DATE"></span><input type="date" id="rec-date"></label>
+    <label class="f"><span data-i18n="IN"></span><input type="time" id="rec-in"></label><label class="f"><span data-i18n="OUT"></span><input type="time" id="rec-out"></label>
+  </div>
+  <div style="margin-top:10px"><span class="muted" data-i18n="ACTUAL_BREAKS"></span><div id="rec-breaks" class="grid" style="gap:6px;margin-top:6px"></div><button type="button" class="btn small" id="rec-add-brk" style="margin-top:6px" data-i18n="ADD_BREAK"></button></div>
+  <div class="grid g2" style="margin-top:10px"><label class="f"><span data-i18n="BREAK_MIN_MANUAL"></span><input type="number" id="rec-brk" min="0" step="5"></label><label class="f"><span data-i18n="NOTE"></span><input id="rec-note"></label></div>
+  <p class="err" id="rec-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn danger" id="rec-delete" data-i18n="DELETE"></button><span style="flex:1"></span><button type="button" class="btn" data-close data-i18n="CANCEL"></button><button type="button" class="btn primary" id="rec-save" data-i18n="SAVE"></button></div></dialog>
+
+<div id="print-area"></div>
+</body></html>

@@ -1,0 +1,17 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#152037"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>알바고</title></head>
+<body>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바고 <span class="sub" id="store"></span></div></div><div class="row"><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
+<main class="wrap" style="max-width:560px">
+  <section class="card me-hero section">
+    <div class="muted" id="hello"></div>
+    <div class="status-big" id="status"></div>
+    <div class="punch-grid" id="acts"></div>
+    <p class="muted" id="today-shift" style="margin-top:12px"></p>
+    <p class="geo-note" data-i18n="WEB_GEO_NOTE"></p>
+  </section>
+  <section class="card section"><h3 data-i18n="MY_SHIFTS"></h3><ul class="list" id="shifts"></ul></section>
+  <section class="card section"><h3 id="pay-title"></h3><div class="grid" style="margin:12px 0;grid-template-columns:1fr 1fr" id="pay"></div><p class="muted" data-i18n="PAY_ESTIMATE_NOTE"></p></section>
+  <section class="card section"><h3 data-i18n="MY_RECORDS"></h3><ul class="list" id="records"></ul></section>
+  <form class="card section" id="pin-form"><h3 data-i18n="MY_PIN"></h3><p class="muted" data-i18n="MY_PIN_HELP"></p><div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" required><button class="btn primary" data-i18n="SAVE"></button></div></form>
+</main>
+<script src="/staff.js"></script></body></html>

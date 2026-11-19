@@ -1,0 +1,22 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>알바고 로그인</title></head><body>
+<header class="topbar"><a class="brand" href="/" style="color:#fff;text-decoration:none"><img src="/icon.svg" alt=""><div>알바고 <span class="sub">albago.kr</span></div></a><button class="lang-btn" type="button"></button></header>
+<main class="wrap"><form id="f-login" class="card login-box">
+<h2 data-i18n="LOGIN"></h2><p class="muted" data-i18n="LOGIN_HELP"></p>
+<div class="grid" style="margin-top:14px">
+<label class="f"><span data-i18n="STORE_CODE"></span><input id="storeCode" inputmode="numeric" autocomplete="organization" required data-i18n-ph="BIZNO_PH"></label>
+<label class="f"><span data-i18n="LOGIN_ID"></span><input id="loginId" autocomplete="username" required></label>
+<label class="f"><span data-i18n="PASSWORD"></span><input id="password" type="password" autocomplete="current-password" required></label>
+<button class="btn primary" data-i18n="LOGIN"></button><p class="err" id="err"></p>
+<p class="muted"><a href="#" id="forgot" data-i18n="FORGOT_PW"></a> · <a href="/signup" data-i18n="OWNER_SIGNUP"></a> · <a href="/join" data-i18n="STAFF_JOIN"></a></p></div></form>
+<form id="f-otp" class="card login-box" hidden>
+<h2 data-i18n="OTP_TITLE"></h2><p class="muted" id="otp-help"></p>
+<div class="grid" style="margin-top:14px"><input id="otp" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+<label class="chk"><input type="checkbox" id="remember"> <span data-i18n="REMEMBER_DEVICE"></span></label>
+<button class="btn primary" data-i18n="CONFIRM"></button><p class="err" id="otp-err"></p></div></form>
+<form id="f-reset" class="card login-box" hidden>
+<h2 data-i18n="FORGOT_PW"></h2><p class="muted" data-i18n="RESET_HELP"></p>
+<div class="grid" style="margin-top:14px"><button type="button" class="btn" id="reset-send" data-i18n="SEND_CODE"></button>
+<label class="f"><span data-i18n="CODE"></span><input id="reset-code" inputmode="numeric" maxlength="6"></label>
+<label class="f"><span data-i18n="NEW_PW"></span><input id="reset-pw" type="password" autocomplete="new-password"></label>
+<button class="btn primary" data-i18n="CHANGE_PW"></button><p class="err" id="reset-err"></p></div></form></main>
+<script src="/login.js"></script></body></html>

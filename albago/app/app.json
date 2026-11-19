@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "알바고",
+    "slug": "albago",
+    "scheme": "albago",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "kr.albago.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "출근·퇴근 버튼을 누를 때 매장 근처인지 확인하기 위해 위치를 사용합니다. / Albago uses your location to confirm you are at the store when you clock in or out.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "자동 출퇴근을 켜면 앱을 열지 않아도 매장에 도착하거나 떠날 때 출근·퇴근을 기록하기 위해 위치를 사용합니다. 매장 주변 출입만 확인하며 이동 경로는 저장하지 않습니다. / With auto attendance on, Albago uses your location in the background to record clock-in/out when you arrive at or leave the store. Only entering/leaving the store area is checked; your route is not stored.",
+        "UIBackgroundModes": ["location"],
+        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+      }
+    },
+    "android": {
+      "package": "kr.albago.app",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-task-manager",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "출근·퇴근 버튼을 누를 때 매장 근처인지 확인하기 위해 위치를 사용합니다. / Albago uses your location to confirm you are at the store when you clock in or out.",
+          "locationAlwaysAndWhenInUsePermission": "자동 출퇴근을 켜면 앱을 열지 않아도 매장에 도착하거나 떠날 때 출근·퇴근을 기록하기 위해 위치를 사용합니다. 매장 주변 출입만 확인하며 이동 경로는 저장하지 않습니다. / With auto attendance on, Albago uses your location in the background to record clock-in/out when you arrive at or leave the store. Only entering/leaving the store area is checked; your route is not stored.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": false,
+          "motionUsagePermission": false
+        }
+      ],
+      ["expo-notifications", { "color": "#2b5ce6" }]
+    ]
+  }
+}

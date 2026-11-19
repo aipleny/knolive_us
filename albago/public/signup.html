@@ -1,0 +1,28 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>알바고 사업자 회원가입</title></head><body>
+<header class="topbar"><a class="brand" href="/" style="color:#fff;text-decoration:none"><img src="/icon.svg" alt=""><div>알바고 <span class="sub">albago.kr</span></div></a><button class="lang-btn" type="button"></button></header>
+<main class="wrap"><form id="f" class="card login-box" style="max-width:520px">
+<h2 data-i18n="OWNER_SIGNUP"></h2><p class="muted" data-i18n="SIGNUP_HELP"></p>
+<div class="steps" style="margin-top:14px"><span></span><span></span><span></span><span></span></div>
+<section data-step="1"><h3 data-i18n="S1_TITLE"></h3><div class="grid" style="margin-top:10px">
+<label class="f"><span data-i18n="BIZNO"></span><input id="bizNo" inputmode="numeric" required data-i18n-ph="BIZNO_PH"></label>
+<label class="f"><span data-i18n="STORE_NAME"></span><input id="storeName" required></label>
+<label class="f"><span data-i18n="OWNER_NAME"></span><input id="ownerName" required></label>
+<label class="f"><span data-i18n="STORE_ADDRESS"></span><input id="address"></label>
+<button type="button" class="btn primary" id="s1" data-i18n="NEXT"></button></div></section>
+<section data-step="2" hidden><h3 data-i18n="S2_TITLE"></h3><div class="grid" style="margin-top:10px">
+<label class="f"><span data-i18n="MOBILE"></span><div class="row" style="flex-wrap:nowrap"><input id="phone" inputmode="tel" placeholder="010-0000-0000"><button type="button" class="btn" id="sms-send" data-i18n="SEND_CODE"></button></div></label>
+<label class="f"><span data-i18n="CODE"></span><input id="sms-code" inputmode="numeric" maxlength="6"></label>
+<button type="button" class="btn primary" id="s2" data-i18n="VERIFY"></button></div></section>
+<section data-step="3" hidden><h3 data-i18n="S3_TITLE"></h3><div class="grid" style="margin-top:10px">
+<label class="f"><span data-i18n="EMAIL"></span><div class="row" style="flex-wrap:nowrap"><input id="email" type="email"><button type="button" class="btn" id="mail-send" data-i18n="SEND_CODE"></button></div><small data-i18n="EMAIL_OTP_NOTE"></small></label>
+<label class="f"><span data-i18n="CODE"></span><input id="mail-code" inputmode="numeric" maxlength="6"></label>
+<button type="button" class="btn primary" id="s3" data-i18n="VERIFY"></button></div></section>
+<section data-step="4" hidden><h3 data-i18n="S4_TITLE"></h3><div class="grid" style="margin-top:10px">
+<label class="f"><span data-i18n="LOGIN_ID"></span><input id="loginId" autocomplete="username"><small data-i18n="ID_RULE"></small></label>
+<label class="f"><span data-i18n="PASSWORD"></span><input id="pw" type="password" autocomplete="new-password"><small data-i18n="PW_RULE"></small></label>
+<label class="f"><span data-i18n="PASSWORD2"></span><input id="pw2" type="password" autocomplete="new-password"></label>
+<label class="chk"><input type="checkbox" id="agree"> <span data-i18n="AGREE"></span></label>
+<button class="btn primary" data-i18n="SIGNUP_DONE_BTN"></button></div></section>
+<section data-step="5" hidden><h3 data-i18n="SIGNUP_DONE"></h3><p id="done-msg" style="margin:12px 0"></p><a class="btn primary" href="/login" data-i18n="LOGIN"></a></section>
+<p class="err" id="err"></p></form></main>
+<script src="/signup.js"></script></body></html>
