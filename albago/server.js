@@ -549,6 +549,11 @@ route('PUT', '/api/owner/store', 'owner', async (c) => {
       if ('publicHolidayPay' in x.premiums) p.publicHolidayPay = !!x.premiums.publicHolidayPay;
       s.premiums = p;
     }
+    if (s.fivePlus) { // 5인 이상: 법정 최소 미만으로 정할 수 없음
+      const MIN = { overtime: 50, night: 50, holiday: 50, holidayOver8: 100, partTimeExcess: 50 };
+      for (const k of Object.keys(MIN)) if (s.premiums[k] !== undefined && s.premiums[k] < MIN[k]) s.premiums[k] = MIN[k];
+      s.premiums.publicHolidayPay = true;
+    }
     if (Array.isArray(x.publicHolidays)) s.publicHolidays = x.publicHolidays.filter(h => h && isDate(h.date)).map(h => ({ date: h.date, name: clean(h.name, 40) })).sort((a, b) => a.date.localeCompare(b.date)).filter((h, i, a) => !i || a[i - 1].date !== h.date).slice(0, 200);
     if (x.geo) {
       const g = x.geo;

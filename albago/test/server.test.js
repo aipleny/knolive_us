@@ -71,6 +71,10 @@ test('전체 흐름', async () => {
   assert.deepEqual((await call('GET', '/api/owner/messages/verify')).body.ok, true);
   db.prepare("UPDATE messages SET body='바뀐 내용' WHERE kind='warning'").run();
   assert.equal((await call('GET', '/api/owner/messages/verify')).body.ok, false);
+  // 5인 이상이면 법정 최소 미만 가산율은 올려서 저장
+  await call('PUT', '/api/owner/store', { settings: { fivePlus: true, premiums: { overtime: 0, night: 30, holiday: 70, publicHolidayPay: false } } });
+  const st2 = (await call('GET', '/api/owner/bootstrap')).body.store.settings;
+  assert.deepEqual([st2.premiums.overtime, st2.premiums.night, st2.premiums.holiday, st2.premiums.publicHolidayPay], [50, 50, 70, true]);
   // 상시근로자 계산 API
   assert.equal(typeof (await call('GET', '/api/owner/workforce')).body.average, 'number');
   // 직원 토큰으로 사장님 API 불가
