@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>알바챗 관리자</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css">
+<script src="/common.js" defer></script><script src="/docs.js" defer></script><script src="/admin.js" defer></script></head>
+<body>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바챗 관리자 <span class="sub" id="store"></span></div></div>
+  <div class="row"><a class="btn small" href="/" style="background:transparent;color:#fff;border-color:#4a5a78;text-decoration:none">출퇴근 화면</a><button class="btn small" id="logout" hidden style="background:transparent;color:#fff;border-color:#4a5a78">로그아웃</button></div></header>
+
+<form id="setup" class="card login-box" hidden>
+  <h2>알바챗 시작하기</h2><p class="muted">처음 한 번만 설정합니다. 관리자 비밀번호는 사장님만 알고 계셔야 합니다.</p>
+  <div class="grid" style="margin-top:12px"><label class="f">매장 이름<input id="setup-store" required></label>
+  <label class="f">관리자 비밀번호 <small>8자 이상</small><input id="setup-pw" type="password" minlength="8" required autocomplete="new-password"></label>
+  <label class="f">비밀번호 확인<input id="setup-pw2" type="password" minlength="8" required autocomplete="new-password"></label>
+  <button class="btn primary">시작하기</button><p class="err" id="setup-err"></p></div>
+</form>
+<form id="login" class="card login-box" hidden>
+  <h2>관리자 로그인</h2>
+  <div class="grid" style="margin-top:12px"><label class="f">비밀번호<input id="login-pw" type="password" required autocomplete="current-password"></label>
+  <button class="btn primary">로그인</button><p class="err" id="login-err"></p></div>
+</form>
+
+<div id="app" hidden>
+  <nav class="tabs" id="tabs">
+    <button data-tab="today" class="active">오늘</button><button data-tab="staff">직원</button><button data-tab="schedule">근무표</button><button data-tab="records">출퇴근 기록</button><button data-tab="payroll">급여 정산</button><button data-tab="contract">근로계약서</button><button data-tab="settings">설정</button>
+  </nav>
+  <main class="wrap">
+    <section data-panel="today"></section>
+    <section data-panel="staff" hidden></section>
+    <section data-panel="schedule" hidden></section>
+    <section data-panel="records" hidden></section>
+    <section data-panel="payroll" hidden></section>
+    <section data-panel="contract" hidden></section>
+    <section data-panel="settings" hidden></section>
+  </main>
+</div>
+
+<dialog id="staff-dlg" style="max-width:min(860px,96vw)"><form id="staff-form" method="dialog"><div class="dlg-body" style="max-height:78vh;overflow:auto">
+  <div class="spread" style="margin-bottom:12px"><h2 id="staff-dlg-title">직원 등록</h2><button type="button" class="btn ghost" data-close>✕</button></div>
+  <fieldset><legend>기본 정보</legend><div class="grid g3">
+    <label class="f">이름 *<input name="name" required></label>
+    <label class="f">휴대폰 번호 <small>직원 앱 로그인에 사용</small><input name="phone" inputmode="tel" placeholder="010-0000-0000"></label>
+    <label class="f">생년월일<input name="birth" type="date"></label>
+    <label class="f">성별<select name="gender"><option value="">선택</option><option>남</option><option>여</option></select></label>
+    <label class="f" style="grid-column:span 2">주소<input name="address"></label>
+  </div></fieldset>
+  <fieldset><legend>국적</legend>
+    <div class="row" style="margin-bottom:10px"><label class="chk"><input type="radio" name="nationality" value="KR" checked> 내국인</label><label class="chk"><input type="radio" name="nationality" value="FOREIGN"> 외국인</label></div>
+    <div class="grid g3" id="kr-fields"><label class="f">주민등록번호 <small id="rrn-now"></small><input name="rrn" autocomplete="off" placeholder="000000-0000000"></label></div>
+    <div class="grid g3" id="fr-fields" hidden>
+      <label class="f">국적(국가)<input name="country" placeholder="예: 베트남 / Vietnam"></label>
+      <label class="f">외국인등록번호 <small id="alien-now"></small><input name="alienNo" autocomplete="off"></label>
+      <label class="f">체류자격(비자)<input name="visa" list="visa-list" placeholder="예: D-2"></label>
+      <label class="f">체류기간 만료일<input name="visaExpiry" type="date"></label>
+      <label class="f" style="grid-column:span 2">본국 주소 <small>외국인 표준근로계약서 기재</small><input name="homeAddress"></label>
+    </div>
+    <datalist id="visa-list"><option value="D-2">유학</option><option value="D-4">일반연수(어학연수)</option><option value="E-9">비전문취업</option><option value="H-2">방문취업</option><option value="F-2">거주</option><option value="F-4">재외동포</option><option value="F-5">영주</option><option value="F-6">결혼이민</option><option value="E-7">특정활동</option></datalist>
+    <p class="muted">주민등록번호·외국인등록번호·계좌번호는 암호화해서 저장하고, 목록에는 가려서 표시합니다. 4대보험 신고·원천징수 등 법령상 필요한 경우에만 수집하세요.</p>
+  </fieldset>
+  <fieldset><legend>비상 연락망</legend><div class="grid g3">
+    <label class="f">이름<input name="emergencyName"></label><label class="f">관계<input name="emergencyRelation" placeholder="예: 부, 모, 배우자"></label><label class="f">연락처<input name="emergencyPhone" inputmode="tel"></label>
+  </div></fieldset>
+  <fieldset><legend>근무 조건</legend><div class="grid g3">
+    <label class="f">시급 (원) *<input name="hourlyWage" type="number" min="0" step="10" required></label>
+    <label class="f">입사일<input name="startDate" type="date"></label>
+    <label class="f">계약 종료일 <small>없으면 비움</small><input name="endDate" type="date"></label>
+    <label class="f">직무<input name="position" placeholder="예: 홀서빙, 주방보조"></label>
+    <label class="f">급여 공제 방식<select name="deduction"><option value="none">공제 없음</option><option value="3.3">3.3% (사업소득)</option><option value="insurance">4대보험 근로자 부담분</option></select></label>
+    <label class="f">보건증 만료일<input name="healthCert" type="date"></label>
+    <label class="f" style="grid-column:1/-1">업무 내용 <small>근로계약서에 들어갑니다</small><input name="jobDesc" placeholder="예: 매장 홀 서빙 및 계산, 매장 정리"></label>
+  </div><p class="muted" id="minwage-hint"></p></fieldset>
+  <fieldset><legend>주간 기본 근무표</legend><div id="sch-edit" class="grid" style="gap:6px"></div><p class="muted">시각을 비워 두면 휴무입니다. 특정 날짜만 바뀌면 근무표 탭에서 그 날짜를 눌러 변경하세요.</p></fieldset>
+  <fieldset><legend>급여 계좌</legend><div class="grid g3">
+    <label class="f">은행<input name="bank"></label><label class="f">계좌번호 <small id="acct-now"></small><input name="account" autocomplete="off"></label><label class="f">예금주<input name="accountHolder"></label>
+  </div></fieldset>
+  <fieldset><legend>출퇴근 PIN · 기타</legend><div class="grid g3">
+    <label class="f">출퇴근 PIN <small id="pin-hint">숫자 4~6자리</small><input name="pin" inputmode="numeric" pattern="\d{4,6}" autocomplete="off"></label>
+    <label class="f">표시 색상<input name="color" type="color" value="#2b5ce6" style="height:44px;padding:4px"></label>
+    <label class="f" style="grid-column:1/-1">메모<textarea name="memo"></textarea></label>
+  </div></fieldset>
+  <p class="err" id="staff-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn danger" id="staff-delete" hidden>삭제</button><button type="button" class="btn" id="staff-toggle" hidden>퇴사 처리</button><span style="flex:1"></span><button type="button" class="btn" data-close>취소</button><button class="btn primary" value="save">저장</button></div></form></dialog>
+
+<dialog id="cell-dlg"><form method="dialog"><div class="dlg-body">
+  <h2 id="cell-title"></h2><p class="muted" id="cell-base"></p>
+  <div class="grid g3" style="margin-top:12px"><label class="f">시작<input type="time" id="cell-start"></label><label class="f">종료<input type="time" id="cell-end"></label><label class="f">휴게(분)<input type="number" id="cell-brk" min="0" step="5"></label></div>
+  <p class="err" id="cell-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn" id="cell-reset">기본 근무표로</button><button type="button" class="btn" id="cell-off">이 날 휴무</button><span style="flex:1"></span><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" id="cell-save">이 날만 변경</button></div></form></dialog>
+
+<dialog id="rec-dlg"><form method="dialog" id="rec-form"><div class="dlg-body">
+  <h2 id="rec-title">출퇴근 기록</h2>
+  <div class="grid g2" style="margin-top:12px">
+    <label class="f">직원<select id="rec-staff"></select></label><label class="f">근무일<input type="date" id="rec-date" required></label>
+    <label class="f">출근<input type="time" id="rec-in" required></label><label class="f">퇴근 <small>다음 날 퇴근도 그대로 입력</small><input type="time" id="rec-out"></label>
+    <label class="f">휴게(분) <small>비우면 근무표/법정 기준 자동</small><input type="number" id="rec-brk" min="0" step="5"></label><label class="f">수정 사유·메모<input id="rec-note"></label>
+  </div><p class="err" id="rec-err"></p>
+</div><div class="dlg-foot"><button type="button" class="btn danger" id="rec-delete" hidden>삭제</button><span style="flex:1"></span><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" id="rec-save">저장</button></div></form></dialog>
+
+<div id="print-area"></div>
+</body></html>

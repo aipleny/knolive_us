@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>알바챗</title><meta name="theme-color" content="#152037"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="알바챗">
+<link rel="stylesheet" href="/style.css"><script src="/common.js" defer></script><script src="/me.js" defer></script></head>
+<body>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바챗 <span class="sub" id="store"></span></div></div><button class="btn small" id="logout" hidden style="background:transparent;color:#fff;border-color:#4a5a78">로그아웃</button></header>
+<main class="wrap" style="max-width:560px">
+  <form id="login" class="card login-box" hidden style="margin-top:20px">
+    <h2>내 출퇴근 로그인</h2>
+    <p class="muted">사장님께 등록한 휴대폰 번호와 PIN을 입력하세요. 이 휴대폰에서는 다음부터 바로 열립니다.</p>
+    <div class="grid" style="margin-top:12px">
+      <label class="f">휴대폰 번호<input id="phone" inputmode="tel" autocomplete="tel" required placeholder="010-0000-0000"></label>
+      <label class="f">PIN<input id="pin" inputmode="numeric" type="password" autocomplete="current-password" required pattern="\d{4,6}" placeholder="숫자 4~6자리"></label>
+      <button class="btn primary">로그인</button><p class="err" id="login-err"></p>
+    </div>
+  </form>
+  <div id="app" hidden>
+    <section class="card me-hero section">
+      <div class="muted" id="hello"></div>
+      <div class="status" id="status"></div>
+      <button class="btn big" id="punch"></button>
+      <p class="muted" id="today-shift" style="margin-top:12px"></p>
+    </section>
+    <section class="card section"><h3>내 근무 일정 (2주)</h3><ul class="list" id="shifts"></ul></section>
+    <section class="card section"><h3 id="pay-title">이번 달 예상 급여</h3>
+      <div class="grid" style="margin:12px 0;grid-template-columns:1fr 1fr" id="pay"></div>
+      <p class="muted">퇴근까지 찍힌 기록 기준의 예상 금액입니다. 확정 금액은 사장님이 정산한 임금명세서를 확인하세요.</p></section>
+    <section class="card section"><h3>이번 달 출퇴근 기록</h3><ul class="list" id="records"></ul></section>
+    <p class="muted" id="install-tip" style="text-align:center"></p>
+  </div>
+</main>
+</body></html>

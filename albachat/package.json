@@ -1,0 +1,12 @@
+{
+  "name": "albachat",
+  "version": "1.0.0",
+  "description": "알바챗 - 매장 아르바이트 출퇴근·근무표·급여·근로계약서 관리",
+  "main": "server.js",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}

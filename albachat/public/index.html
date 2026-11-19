@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>알바챗 출퇴근</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css">
+<script src="/common.js" defer></script><script src="/kiosk.js" defer></script></head>
+<body class="kiosk">
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바챗 <span class="sub" id="store"></span></div></div><div><div class="clock" id="clock">--:--</div><div class="date" id="date"></div></div></header>
+<main class="wrap">
+  <section id="unregistered" class="card" hidden>
+    <h2>이 기기는 출퇴근 단말기로 등록되지 않았습니다</h2>
+    <p class="muted">매장 POS·태블릿에서 <a href="/admin">관리자 화면</a>에 로그인한 뒤, <b>설정 → 이 기기를 출퇴근 단말기로 등록</b>을 눌러 주세요. 직원 개인 휴대폰은 <a href="/me">/me</a> 주소를 사용합니다.</p>
+  </section>
+  <section id="main" hidden>
+    <div class="spread section"><h2>이름을 눌러 출근·퇴근하세요</h2><span class="muted" id="working"></span></div>
+    <div class="staff-grid section" id="grid"></div>
+    <div class="card section"><div class="spread"><h3>이번 주 근무표</h3><a class="muted" href="/admin">관리자</a></div><div class="table-wrap" style="margin-top:10px;border:0"><table class="sched" id="week"></table></div></div>
+  </section>
+</main>
+<dialog id="dlg"><div class="dlg-body">
+  <div class="spread"><h2 id="dlg-name"></h2><button class="btn ghost" id="dlg-close" aria-label="닫기">✕</button></div>
+  <p class="muted" id="dlg-shift"></p>
+  <div id="pin-step"><p style="text-align:center;margin:10px 0 0">PIN 번호를 입력하세요</p><div class="pin-dots" id="dots"></div><p class="err" id="pin-err" style="text-align:center;min-height:22px;margin:0"></p>
+    <div class="pinpad" id="pad"></div></div>
+  <div id="act-step" hidden><p id="act-status" style="text-align:center;font-size:17px;margin:14px 0 0"></p><div class="punch-actions"><button class="btn in" id="do-in">출근</button><button class="btn out" id="do-out">퇴근</button></div></div>
+</div></dialog>
+</body></html>
