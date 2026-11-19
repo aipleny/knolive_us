@@ -52,6 +52,27 @@ test('전체 흐름', async () => {
   // 엑셀
   const x = await fetch(base + `/api/owner/export/payroll.xlsx?from=${today.slice(0, 7)}-01&to=${C.monthEnd(today.slice(0, 7))}`, { headers: { Cookie: jar.c } });
   assert.equal(x.status, 200); assert.match(x.headers.get('content-type'), /spreadsheetml/);
+  // 소통 채널: 경고 발송 → 알바 조회·확인 → 무결성 → 변조 감지
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c50000000049454e44ae426082', 'hex').toString('base64');
+  const w = await call('POST', '/api/owner/messages', { staffId: sid, kind: 'warning', title: '지각', body: '11/19 30분 지각', attachments: [{ name: 'a.png', type: 'image/png', data: png }] });
+  assert.equal(w.status, 200);
+  assert.equal((await call('POST', '/api/owner/messages', { staffId: sid, kind: 'warning', body: 'x', attachments: [{ name: 'a.exe', type: 'application/x-msdownload', data: png }] })).body.code, 'ATT_TYPE');
+  await call('POST', '/api/owner/messages', { kind: 'notice', body: '내일 대청소' });
+  assert.equal((await call('GET', '/api/staff/home', null, { token: tok })).body.unread, 2);
+  const list = (await call('GET', '/api/staff/messages', null, { token: tok })).body.items;
+  assert.equal(list.length, 2); const warn = list.find(m => m.kind === 'warning');
+  assert.equal(warn.requiresAck, true); assert.ok(warn.readAt === null || warn.readAt);
+  const att = await fetch(base + '/api/staff/attachments/' + warn.attachments[0].id, { headers: { Authorization: 'Bearer ' + tok } });
+  assert.equal(att.status, 200); assert.equal(Buffer.from(await att.arrayBuffer()).toString('base64'), png);
+  assert.ok((await call('POST', `/api/staff/messages/${warn.id}/ack`, {}, { token: tok })).body.ackAt);
+  assert.equal((await call('POST', '/api/staff/messages', { kind: 'absence_reason', body: '병원 진료', date: today }, { token: tok })).status, 200);
+  const ow = (await call('GET', '/api/owner/messages?staffId=' + sid)).body;
+  assert.equal(ow.items.length, 2); assert.ok(ow.items.find(m => m.kind === 'warning').ackAt);
+  assert.deepEqual((await call('GET', '/api/owner/messages/verify')).body.ok, true);
+  db.prepare("UPDATE messages SET body='바뀐 내용' WHERE kind='warning'").run();
+  assert.equal((await call('GET', '/api/owner/messages/verify')).body.ok, false);
+  // 상시근로자 계산 API
+  assert.equal(typeof (await call('GET', '/api/owner/workforce')).body.average, 'number');
   // 직원 토큰으로 사장님 API 불가
   assert.equal((await call('GET', '/api/owner/bootstrap', null, { token: tok })).status, 401);
 });

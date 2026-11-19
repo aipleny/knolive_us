@@ -37,7 +37,7 @@ function dayTable(f) {
 }
 function wageBlock(f, n) {
   return `<div class="item"><b>${n}. 임 금</b>
-  <p>- 시간급 : ${u(Number(f.wage || 0).toLocaleString('ko-KR'), 90)}원</p>
+  <p>- ${f.payType === 'monthly' ? '월급' : '시간급'} : ${u(Number(f.payType === 'monthly' ? f.monthlySalary : f.wage || 0).toLocaleString('ko-KR'), 90)}원${f.payType === 'monthly' ? ' (주휴수당 포함)' : ''}</p>
   <p>- 상여금 : 있음 (${f.bonus ? esc(f.bonus) : '&nbsp;&nbsp;&nbsp;'}) 원, 없음 (${f.bonus ? '&nbsp;&nbsp;' : '✓'})</p>
   <p>- 기타급여(제수당 등) : ${f.otherPay ? `있음 (✓) ${u(f.otherPay, 160)}` : '있음 (&nbsp;&nbsp;), 없음 (✓)'}</p>
   ${n === 5 && f.type === 'parttime' ? `<p>- 초과근로에 대한 가산임금률 : ${u(f.fivePlus ? (f.otRate || 50) : '해당 없음(상시 4인 이하)', 60)}${f.fivePlus ? '%' : ''}</p><p class="en" style="color:#000">※ 단시간근로자와 사용자 사이에 근로하기로 정한 시간을 초과하여 근로하면 법정 근로시간 내라도 통상임금의 100분의 50% 이상의 가산임금 지급 (상시근로자 5인 이상 사업장, 기간제법 제6조)</p>` : ''}
@@ -114,7 +114,7 @@ function foreignContract(f) {
   <tr><th class="l">${bl('4. 근로시간', 'Working hours')}</th><td class="l">${uni ? `${esc(uni.start)} ~ ${esc(uni.end)}` : '요일별 근로시간표에 따름 (See the table below)'} &nbsp;/ 주 ${wd.length}일 (${wd.map(d => DOW[d] + ' ' + DOW_EN[d]).join(', ')}), 1주 ${hoursText(wm)} (${(wm / 60).toFixed(1)} hours/week)${uni ? '' : dayTable(f)}</td></tr>
   <tr><th class="l">${bl('5. 휴게시간', 'Recess hours')}</th><td class="l">${uni ? `${esc(brkStr(uni) || '없음 None')} (1일 ${brkMins(uni)}분 / ${brkMins(uni)} minutes per day)` : '요일별 표 참조 / See the table'}</td></tr>
   <tr><th class="l">${bl('6. 휴일', 'Holidays')}</th><td class="l">주휴일 매주 ${esc(f.weeklyHoliday)}요일 (Weekly paid holiday: every ${DOW_EN[DOW.indexOf(f.weeklyHoliday)] || ''})${wm < 900 ? '<br><span class="en">※ 1주 소정근로시간 15시간 미만: 주휴일 미적용 (Less than 15 hours per week: weekly holiday not applicable)</span>' : ''}</td></tr>
-  <tr><th class="l">${bl('7. 임금', 'Payment')}</th><td class="l">1) 시간급 Hourly wage: ${Number(f.wage || 0).toLocaleString('ko-KR')}원 (KRW)<br>&nbsp;&nbsp;&nbsp;월 예상 통상임금(주휴수당 포함) Estimated monthly normal wage (incl. weekly holiday pay): 약 ${monthly.toLocaleString('ko-KR')}원<br>- 상여금 Bonus: ${f.bonus ? esc(f.bonus) + '원' : '없음 (None)'} &nbsp; - 기타 수당 Other allowances: ${f.otherPay ? esc(f.otherPay) : '없음 (None)'}<br>2) 연장, 야간, 휴일근로에 대해서는 통상임금의 50%를 가산 지급 (상시근로자 4인 이하 사업장에는 적용하지 않음)<br><span class="en">Overtime, night shift or holiday work will be paid 50% more than the employee's regular rate of pay (not applicable to businesses with 4 or fewer employees).</span>${f.probation ? '<br>3) 수습기간 중 임금 Wage during probation: ' + esc(f.probationWage || '정상 임금 지급 (Normal wage)') : ''}</td></tr>
+  <tr><th class="l">${bl('7. 임금', 'Payment')}</th><td class="l">1) ${f.payType === 'monthly' ? `월급 Monthly salary: ${Number(f.monthlySalary || 0).toLocaleString('ko-KR')}원 (KRW, 주휴수당 포함 incl. weekly holiday pay)` : `시간급 Hourly wage: ${Number(f.wage || 0).toLocaleString('ko-KR')}원 (KRW)`}<br>&nbsp;&nbsp;&nbsp;월 예상 통상임금(주휴수당 포함) Estimated monthly normal wage (incl. weekly holiday pay): 약 ${monthly.toLocaleString('ko-KR')}원<br>- 상여금 Bonus: ${f.bonus ? esc(f.bonus) + '원' : '없음 (None)'} &nbsp; - 기타 수당 Other allowances: ${f.otherPay ? esc(f.otherPay) : '없음 (None)'}<br>2) 가산임금 Premium pay: 연장 Overtime ${f.rates.overtime}% · 야간 Night ${f.rates.night}% · 휴일 Holiday ${f.rates.holiday}% (8시간 초과 over 8h ${f.rates.holidayOver8}%)<br><span class="en">※ 상시근로자 5인 이상 사업장은 연장·야간·휴일근로에 통상임금의 50% 이상을 가산 지급합니다. Businesses with 5+ employees pay at least 50% extra for overtime, night and holiday work.</span>${f.probation ? '<br>3) 수습기간 중 임금 Wage during probation: ' + esc(f.probationWage || '정상 임금 지급 (Normal wage)') : ''}</td></tr>
   <tr><th class="l">${bl('8. 임금지급일', 'Payment date')}</th><td class="l">매월 ${esc(f.payDay)}일 (휴일의 경우 전일 지급) / ${esc(f.payDay)}th day of every month (paid the day before if it falls on a holiday)</td></tr>
   <tr><th class="l">${bl('9. 지급방법', 'Payment methods')}</th><td class="l">${box(f.payMethod === 'direct')} 직접 지급 In person &nbsp; ${box(f.payMethod !== 'direct')} 통장 입금 By direct deposit transfer into the employee's account<br><span class="en">※ 사용자는 근로자 명의로 된 예금통장 및 도장을 관리해서는 안 됨. The employer shall not keep the bankbook and the seal of the employee.</span></td></tr>
   <tr><th class="l">${bl('10. 숙식제공', 'Accommodations and Meals')}</th><td class="l">1) 숙박시설 제공 Accommodation: ${box(f.housing)} 제공 Provided ${box(!f.housing)} 미제공 Not provided${f.housing ? ' — ' + esc(f.housingNote) : ''}<br>2) 식사 제공 Meals: ${box(f.meals)} 제공 Provided ${box(!f.meals)} 미제공 Not provided${f.meals ? ' — ' + esc(f.mealsNote) : ''}<br><span class="en">※ 숙식 비용의 근로자 부담 수준은 사용자와 근로자 간 협의로 결정 (The cost to be paid by the employee is decided by mutual consultation.)</span></td></tr>
@@ -131,7 +131,14 @@ function payslipHTML(p, store, payDate, bilingual) {
   const L = (ko, en) => bilingual ? `${ko}<br><span class="en">${en}</span>` : ko;
   const n = v => Math.round(v || 0).toLocaleString('ko-KR') + '원';
   const items = [[L('기본급', 'Basic pay'), p.base, `${hoursText(p.workedMin)} × ${p.wage.toLocaleString('ko-KR')}원`], [L('주휴수당', 'Weekly holiday pay'), p.holidayPay, p.weeks.filter(w => w.counted && w.holidayPay).map(w => `${w.start.slice(5)}~${w.end.slice(5)}: ${(Math.min(w.basisMin, 2400) / 60).toFixed(1)}h÷40×8×시급`).join(' / ') || '-']];
-  if (p.fivePlus) items.push([L('연장근로수당', 'Overtime premium'), p.overtimePay, `${hoursText(p.overtimeMin)} × 시급 × 0.5`], [L('야간근로수당', 'Night work premium'), p.nightPay, `${hoursText(p.nightMin)} × 시급 × 0.5`]);
+  if (p.payType === 'monthly') items[0] = [L('기본급(월급)', 'Monthly salary'), p.base, `월 ${p.monthlySalary.toLocaleString('ko-KR')}원 (일할 계산) · 통상시급 ${p.wage.toLocaleString('ko-KR')}원 (${p.stdHours}시간 기준)`];
+  if (p.payType === 'monthly') items.splice(1, 1);
+  const R = p.rates || {};
+  if (p.overtimePay) items.push([L('연장근로수당', 'Overtime premium'), p.overtimePay, `${hoursText(p.overtimeMin)} × 통상시급 × ${R.overtime}%`]);
+  if (p.nightPay) items.push([L('야간근로수당', 'Night work premium'), p.nightPay, `${hoursText(p.nightMin)} × 통상시급 × ${R.night}%`]);
+  if (p.holidayWorkPay) items.push([L('휴일근로수당', 'Holiday work premium'), p.holidayWorkPay, `8시간 이내 ${hoursText(p.holidayMin)} × ${R.holiday}% + 초과 ${hoursText(p.holidayOver8Min)} × ${R.holidayOver8}%`]);
+  if (p.excessPay) items.push([L('초과근로수당(단시간)', 'Part-time excess premium'), p.excessPay, `${hoursText(p.excessMin)} × 통상시급 × ${R.partTimeExcess}%`]);
+  for (const h of p.paidHolidays || []) items.push([L('유급휴일수당', 'Paid holiday'), h.amount, mdK(h.date)]);
   if (p.allowance) items.push([L('기타 수당', 'Allowance'), p.allowance, '']);
   return `<div class="doc"><h1>임 금 명 세 서${bilingual ? '<small>Pay Statement</small>' : ''}</h1>
   <p style="text-align:right">${L('지급일', 'Pay date')} : ${ymd(payDate)}</p>
@@ -139,8 +146,8 @@ function payslipHTML(p, store, payDate, bilingual) {
   <tr><th>${L('대표자', 'Representative')}</th><td class="l">${esc(store.ownerName)}</td><th>${L('생년월일', 'Birthdate')}</th><td class="l">${esc(p.birth)}</td></tr>
   <tr><th>${L('정산 기간', 'Pay period')}</th><td class="l">${esc(p.from)} ~ ${esc(p.to)}</td><th>${L('입사일 / 직무', 'Start date / Job')}</th><td class="l">${esc(p.startDate)} / ${esc(p.position)}</td></tr></table>
   <h3 style="margin:10px 0 4px">${L('근로일수·시간', 'Days & hours worked')}</h3>
-  <table><tr><th>${L('근로일수', 'Days')}</th><th>${L('총 근로시간', 'Total hours')}</th><th>${L('연장', 'Overtime')}</th><th>${L('야간', 'Night')}</th><th>${L('휴일', 'Holiday')}</th><th>${L('시급', 'Hourly wage')}</th></tr>
-  <tr><td>${p.days}</td><td>${hoursText(p.workedMin)}</td><td>${hoursText(p.overtimeMin)}</td><td>${hoursText(p.nightMin)}</td><td>0</td><td>${n(p.wage)}</td></tr></table>
+  <table><tr><th>${L('근로일수', 'Days')}</th><th>${L('총 근로시간', 'Total hours')}</th><th>${L('연장', 'Overtime')}</th><th>${L('야간', 'Night')}</th><th>${L('휴일', 'Holiday')}</th><th>${L(p.payType === 'monthly' ? '통상시급' : '시급', 'Hourly rate')}</th></tr>
+  <tr><td>${p.days}</td><td>${hoursText(p.workedMin)}</td><td>${hoursText(p.overtimeMin)}</td><td>${hoursText(p.nightMin)}</td><td>${hoursText((p.holidayMin || 0) + (p.holidayOver8Min || 0))}</td><td>${n(p.wage)}</td></tr></table>
   <h3 style="margin:10px 0 4px">${L('지급 내역', 'Earnings')}</h3>
   <table><tr><th style="width:24%">${L('항목', 'Item')}</th><th style="width:20%">${L('금액', 'Amount')}</th><th>${L('계산 방법', 'Calculation')}</th></tr>
   ${items.map(([k, v, how]) => `<tr><td>${k}</td><td style="text-align:right">${n(v)}</td><td class="l">${esc(how)}</td></tr>`).join('')}

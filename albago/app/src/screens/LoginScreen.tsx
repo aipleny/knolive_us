@@ -44,7 +44,7 @@ export default function LoginScreen({ navigation }: { navigation: { navigate(nam
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[s.pad, { paddingTop: 72 }]} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: 'flex-end' }}><LangSwitch lang={lang} onChange={setLang} /></View>
-        <Text style={{ fontSize: 40, fontWeight: '800', color: C.brand, marginTop: 24 }}>{t('appName')}</Text>
+        <Text style={{ fontSize: 34, fontWeight: '800', color: C.brand, marginTop: 24 }}>{t('appName')}</Text>
         <Text style={[s.small, { marginBottom: 28, fontSize: 15 }]}>
           {lang === 'ko' ? '알바 출퇴근을 간편하게' : 'Simple staff attendance'}
         </Text>

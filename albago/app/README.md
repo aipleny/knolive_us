@@ -19,7 +19,9 @@ src/location.ts     현재 위치 (출퇴근 버튼·지오펜스 공용)
 src/session.tsx     로그인 상태, 언어, 서버 주소, 자동 출퇴근 설정
 src/i18n.ts         한국어/영어 문구, KST 시각 표시
 src/ui.tsx          버튼·입력칸·카드, 색상
-src/screens/        Login, Signup, Home, Settings, Pin
+src/push.ts         푸시 토큰 등록 (POST /api/staff/push-token)
+src/attachments.ts  첨부 보기 (이미지: Bearer 헤더로 표시, PDF: 캐시에 받아 공유/열기)
+src/screens/        Login, Signup, Home, Settings, Pin, Messages, Compose
 ```
 
 ## 실행
@@ -66,6 +68,21 @@ Android 는 USB 연결 후 `npx expo run:android` 로 로컬 빌드도 가능합
 4. 설정 > 자동 출퇴근 끄기 또는 로그아웃 시 지오펜스를 해제합니다.
 
 참고: OS 지오펜스는 수 분 늦게 오거나 실내에서 놓칠 수 있습니다. 출퇴근 버튼이 항상 기본 수단입니다.
+
+## 소통(메시지)
+- 홈의 **소통 · 메시지** 버튼(안 읽은 수 배지 = `home.unread`) → 메시지 목록(최신순).
+  사장님 문서(공지·지시사항·경고·징계·해고 통보)는 정식 문서 카드로, 내가 보낸 글은 오른쪽 말풍선으로 보입니다.
+- `requiresAck` 문서는 **확인했습니다** 버튼 → 확인 대화상자("수령 확인이며 내용에 동의한다는 뜻은 아닙니다") → `POST /api/staff/messages/:id/ack`.
+- **쓰기**: 종류(메시지·건의·결근 사유서·근무 변경 요청), 제목(선택), 내용, 관련 근무일(선택), 사진 최대 3장(각 5MB, JPEG 로 base64 전송).
+  보낸 메시지는 수정·삭제할 수 없습니다.
+
+## 푸시 알림 (새 메시지)
+- 로그인 후 알림 권한을 요청하고 Expo 푸시 토큰을 서버에 등록합니다.
+- **푸시 토큰에는 EAS projectId 가 필요합니다.** `eas init` 을 실행하면 app.json 의 `extra.eas.projectId` 에 들어갑니다.
+  projectId 가 없으면 토큰 등록만 건너뜁니다(자동 출퇴근 로컬 알림은 그대로 동작).
+- 실제 푸시는 실기기 + 개발/스토어 빌드에서 확인하세요(Android Expo Go 는 원격 푸시 미지원).
+  Android 는 FCM 설정(`eas credentials` 에서 FCM V1 키 업로드), iOS 는 EAS 가 APNs 키를 만들어 줍니다.
+- 알림을 누르면(`data.type === "message"`) 메시지 화면이 열립니다.
 
 ## 스토어 빌드·제출 (EAS)
 

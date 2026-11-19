@@ -64,3 +64,28 @@ Base URL: `https://albago.kr` (개발: `http://<PC IP>:8080`). JSON 요청/응�
 
 ## PIN (매장 출퇴근 기록부용)
 `PUT /api/staff/pin { "pin": "1234" }` → `{ ok }`
+
+## 소통 채널 (메시지·문서 기록) — 추가
+기록은 삭제·수정할 수 없습니다(근거 보존). 사장님 문서 중 `requiresAck: true` 는 알바가 [확인했습니다]를 눌러야 합니다.
+
+`GET /api/staff/messages` → 내 대화(사장님 ↔ 나) + 매장 공지, 최신순. 받은 메시지는 조회 시 읽음 처리됩니다.
+```json
+{ "items": [ {
+  "id": "...", "from": "owner | staff", "kind": "notice | instruction | general | warning | discipline | dismissal | suggestion | absence_reason | schedule_request",
+  "title": "제목", "body": "내용", "date": "관련 근무일 YYYY-MM-DD | null",
+  "createdAt": "ISO", "readAt": "ISO|null", "requiresAck": true, "ackAt": "ISO|null",
+  "attachments": [ { "id": "...", "name": "진단서.jpg", "type": "image/jpeg", "size": 120394 } ],
+  "hash": "무결성 해시 앞 12자리"
+} ], "unread": 0 }
+```
+`POST /api/staff/messages`
+```json
+{ "kind": "general | suggestion | absence_reason | schedule_request", "title": "선택", "body": "내용(필수)", "date": "YYYY-MM-DD 선택",
+  "attachments": [ { "name": "a.jpg", "type": "image/jpeg", "data": "base64" } ] }
+```
+첨부: 최대 3개, 각 5MB, 이미지(jpeg/png/heic/webp) 또는 PDF. → `{ ok, id }`
+
+`POST /api/staff/messages/:id/ack` → `{ ok, ackAt }` (확인 서명)
+`GET /api/staff/attachments/:id` → 파일 본문 (Bearer 인증)
+`POST /api/staff/push-token { "token": "ExponentPushToken[...]" }` → 새 메시지가 오면 서버가 Expo 푸시로 알림(제목 "ALBAGO 알바고", 본문 = 메시지 종류·제목, data `{ type: "message", id }`)
+`GET /api/staff/home` 응답에 `"unread": 숫자` 가 추가됩니다.

@@ -77,3 +77,10 @@ fieldset{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margi
 .punch-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.punch-grid .btn{padding:20px 0;font-size:19px;border-radius:14px}.punch-grid .btn.wide{grid-column:1/-1}
 .geo-note{font-size:12px;color:var(--muted);margin-top:10px}
 .otp-input{font-size:28px;letter-spacing:10px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* 소통 채널 */
+.msg-layout{display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start}.msg-list{padding:8px;display:flex;flex-direction:column;gap:2px;position:sticky;top:60px}
+.msg-who{border:0;background:none;text-align:left;padding:10px 12px;border-radius:9px;cursor:pointer;font-weight:600}.msg-who:hover{background:#f1f4fa}.msg-who.active{background:var(--brand-soft);color:#173b9c}
+.badge{display:inline-block;min-width:20px;padding:1px 6px;border-radius:99px;background:#d92d20;color:#fff;font-size:12px;text-align:center}
+.msg-card.theirs{background:#fbfcfe}
+@media(max-width:800px){.msg-layout{grid-template-columns:1fr}.msg-list{position:static;flex-direction:row;flex-wrap:wrap}}

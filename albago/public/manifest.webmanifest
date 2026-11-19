@@ -1,2 +1,2 @@
-{ "name": "알바고 albago", "short_name": "알바고", "start_url": "/staff", "scope": "/", "display": "standalone", "background_color": "#f3f5f9", "theme_color": "#152037", "lang": "ko",
+{ "name": "ALBAGO 알바고", "short_name": "알바고", "start_url": "/staff", "scope": "/", "display": "standalone", "background_color": "#f3f5f9", "theme_color": "#152037", "lang": "ko",
   "icons": [ { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" } ] }

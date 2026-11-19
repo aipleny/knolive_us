@@ -63,6 +63,11 @@ CREATE INDEX IF NOT EXISTS records_staff ON records(staff_id, in_at);
 CREATE TABLE IF NOT EXISTS contracts(id TEXT PRIMARY KEY, store_id TEXT NOT NULL, staff_id TEXT NOT NULL, type TEXT, title TEXT, fields TEXT, created_at TEXT);
 CREATE TABLE IF NOT EXISTS codes(id TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, code_hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER DEFAULT 0, used INTEGER DEFAULT 0, meta TEXT, created_at INTEGER);
 CREATE INDEX IF NOT EXISTS codes_target ON codes(target, created_at);
+CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, store_id TEXT NOT NULL, staff_id TEXT, sender TEXT NOT NULL, sender_name TEXT, kind TEXT NOT NULL, title TEXT, body TEXT NOT NULL, date TEXT, requires_ack INTEGER DEFAULT 0, created_at TEXT NOT NULL, owner_read_at TEXT, ip TEXT, prev_hash TEXT, hash TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS messages_store ON messages(store_id, created_at);
+CREATE TABLE IF NOT EXISTS msg_receipts(message_id TEXT NOT NULL, staff_id TEXT NOT NULL, read_at TEXT, ack_at TEXT, ack_ip TEXT, PRIMARY KEY(message_id, staff_id));
+CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY, message_id TEXT NOT NULL, store_id TEXT NOT NULL, name TEXT, type TEXT, size INTEGER, sha256 TEXT, data BLOB);
+CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY, staff_id TEXT NOT NULL, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT, at TEXT, who TEXT, what TEXT);`);
 const q = (sql, ...a) => db.prepare(sql).all(...a);
 const q1 = (sql, ...a) => db.prepare(sql).get(...a);
@@ -75,6 +80,7 @@ const DEFAULT_SETTINGS = {
   fivePlus: false, rounding: 1, breakAuto: true, earlyFromSchedule: false, payDay: 10, payMethod: 'account',
   minWages: { 2026: 10320, 2027: 10700 }, rates: { ...INS.DEFAULT_RATES }, durunuri: false,
   geo: { auto: true, requireLocation: false, radius: 100, earlyMin: 30, lateOutMin: 10, exitGraceMin: 15 },
+  premiums: {}, publicHolidays: [],
   kioskVer: '',
 };
 function storeSettings(store) {
@@ -270,10 +276,10 @@ function send(res, code, obj, headers = {}) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
   res.end(JSON.stringify(obj));
 }
-function readBody(req) {
+function readBody(req, max = 2e6) {
   return new Promise((resolve, reject) => {
     const chunks = []; let n = 0;
-    req.on('data', c => { n += c.length; if (n > 2e6) { reject(new AppError(413, 'BAD_REQUEST')); req.destroy(); } else chunks.push(c); });
+    req.on('data', c => { n += c.length; if (n > max) { reject(new AppError(413, 'BAD_REQUEST')); req.destroy(); } else chunks.push(c); });
     req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks)) : {}); } catch { reject(new AppError(400, 'BAD_REQUEST')); } });
   });
 }
@@ -286,7 +292,7 @@ function serveStatic(req, res, p) {
   fs.createReadStream(file).pipe(res);
 }
 const routes = [];
-const route = (method, pattern, auth, fn) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), auth, fn });
+const route = (method, pattern, auth, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), auth, fn, ...opts });
 const issueOwner = (res, u, client) => { const tok = sign({ typ: 'owner', uid: u.id, v: u.sess_ver, exp: Date.now() + (client === 'app' ? 30 : 0.5) * 86400000 }); if (client !== 'app') setCookie(res, 'ag_s', tok, 12 * 3600); return tok; };
 const issueStaff = (res, s, client) => { const days = client === 'app' ? 365 : 30; const tok = sign({ typ: 'staff', uid: s.id, v: s.sess_ver, exp: Date.now() + days * 86400000 }); if (client !== 'app') setCookie(res, 'ag_s', tok, days * 86400); return tok; };
 
@@ -346,6 +352,9 @@ route('POST', '/api/auth/login', null, async (c) => {
     clearHits(key);
     const trust = verify(cookies(c.req).ag_t);
     if (trust && trust.typ === 'trust' && trust.uid === u.id && trust.v === u.sess_ver) { const tok = issueOwner(c.res, u, b.client); return { ok: true, role: 'owner', token: b.client === 'app' ? tok : undefined }; }
+    // 1분 안에 이미 보낸 인증번호가 있으면 그 번호를 그대로 쓰게 함
+    const recent = q1('SELECT id FROM codes WHERE kind=? AND target=? AND used=0 AND expires>? AND created_at>? ORDER BY created_at DESC LIMIT 1', 'login', u.id, Date.now(), Date.now() - 60000);
+    if (recent) return { otp: true, otpId: recent.id, emailMasked: maskEmail(u.email), reused: true };
     const r = await sendCode('login', u.id, u.lang, { email: u.email });
     return { otp: true, otpId: r.id, emailMasked: maskEmail(u.email), devCode: r.devCode };
   }
@@ -423,6 +432,7 @@ function staffHome(s) {
     today: { date: today, shift: shiftOf(today) },
     shifts: C.datesBetween(today, C.addDays(today, 13)).map(d => ({ date: d, shift: shiftOf(d) })),
     month: { from, to, workedMin: pay.workedMin, base: pay.base, holidayPay: pay.holidayPay, overtimePay: pay.overtimePay, nightPay: pay.nightPay, gross: pay.gross, deductionTotal: pay.deductionTotal, net: pay.net },
+    unread: unreadForStaff(me),
     records: q('SELECT * FROM records WHERE staff_id=? AND date BETWEEN ? AND ? ORDER BY in_at DESC', me.id, from, to).map(parseRec).map(r => ({ date: r.date, in: r.in, out: r.out, breaks: r.breaks })),
   };
 }
@@ -484,7 +494,9 @@ function publicStaff(s) {
 }
 function writeStaff(storeId, s, b) {
   for (const k of STAFF_FIELDS) if (k in b) s[k] = clean(b[k], k === 'memo' || k === 'jobDesc' ? 1000 : 200);
-  for (const k of ['hourlyWage', 'monthlyAllowance', 'nonTaxable', 'incomeTax']) if (k in b) s[k] = Math.max(0, parseInt(b[k]) || 0);
+  for (const k of ['hourlyWage', 'monthlySalary', 'monthlyHours', 'monthlyAllowance', 'nonTaxable', 'incomeTax']) if (k in b) s[k] = Math.max(0, parseInt(b[k]) || 0);
+  if ('payType' in b) s.payType = b.payType === 'monthly' ? 'monthly' : 'hourly';
+  if ('weeklyHoliday' in b) s.weeklyHoliday = /^[0-6]$/.test(String(b.weeklyHoliday)) ? +b.weeklyHoliday : 0;
   if ('durunuri' in b) s.durunuri = !!b.durunuri;
   if (b.insurance) s.insurance = Object.fromEntries(['pension', 'health', 'employment', 'industrial'].map(k => [k, ['yes', 'no'].includes(b.insurance[k]) ? b.insurance[k] : 'auto']));
   if (b.pattern) s.pattern = Object.fromEntries(Object.entries(b.pattern).filter(([d, x]) => /^[0-6]$/.test(d) && x && isTime(x.start) && isTime(x.end)).map(([d, x]) => [d, { start: x.start, end: x.end, breaks: cleanBreaks(x.breaks) }]));
@@ -531,6 +543,13 @@ route('PUT', '/api/owner/store', 'owner', async (c) => {
     if ('payMethod' in x) s.payMethod = x.payMethod === 'direct' ? 'direct' : 'account';
     if (x.minWages) s.minWages = Object.fromEntries(Object.entries(x.minWages).filter(([y, v]) => /^\d{4}$/.test(y) && +v > 0).map(([y, v]) => [y, +v]));
     if (x.rates) for (const k of Object.keys(INS.DEFAULT_RATES)) if (k in x.rates && x.rates[k] !== '') s.rates[k] = Math.max(0, +x.rates[k] || 0);
+    if (x.premiums) {
+      const p = {};
+      for (const k of ['overtime', 'night', 'holiday', 'holidayOver8', 'partTimeExcess']) if (k in x.premiums && x.premiums[k] !== '' && x.premiums[k] != null) p[k] = Math.min(300, Math.max(0, +x.premiums[k] || 0));
+      if ('publicHolidayPay' in x.premiums) p.publicHolidayPay = !!x.premiums.publicHolidayPay;
+      s.premiums = p;
+    }
+    if (Array.isArray(x.publicHolidays)) s.publicHolidays = x.publicHolidays.filter(h => h && isDate(h.date)).map(h => ({ date: h.date, name: clean(h.name, 40) })).sort((a, b) => a.date.localeCompare(b.date)).filter((h, i, a) => !i || a[i - 1].date !== h.date).slice(0, 200);
     if (x.geo) {
       const g = x.geo;
       for (const k of ['auto', 'requireLocation']) if (k in g) s.geo[k] = !!g[k];
@@ -715,6 +734,15 @@ route('GET', '/api/owner/export/:kind', 'owner', (c) => {
       freeze: 2,
     }];
     fname = `albago_payroll_${from}_${to}.xlsx`;
+  } else if (c.p.kind === 'messages.xlsx') {
+    const staffN = new Map(q('SELECT id,name FROM staff WHERE store_id=?', c.s.storeId).map(r => [r.id, r.name]));
+    const rows = q('SELECT * FROM messages WHERE store_id=? AND substr(created_at,1,10) BETWEEN ? AND ? ORDER BY rowid', c.s.storeId, C.addDays(from, -1), to);
+    const v = verifyChain(c.s.storeId);
+    sheets = [{ name: T('X_MESSAGES'), widths: [17, 10, 12, 14, 14, 24, 60, 12, 17, 17, 14],
+      rows: [[`${store.name} · ${T('X_MESSAGES')} · ${from} ~ ${to} · ${T(v.ok ? 'CHAIN_OK' : 'CHAIN_BROKEN')}`], [T('X_SENT_AT'), T('X_FROM'), T('X_NAME'), T('X_KIND'), T('X_RELATED_DATE'), T('X_TITLE'), T('X_BODY'), T('X_ATTACH'), T('X_READ_AT'), T('X_ACK_AT'), 'hash'].map(v2 => ({ v: v2, bold: true })),
+        ...rows.map(r => { const rc = r.staff_id ? q1('SELECT read_at, ack_at FROM msg_receipts WHERE message_id=? AND staff_id=?', r.id, r.staff_id) : null; const kd = iso => iso ? C.kstDateOf(iso) + ' ' + hhmm(iso) : '';
+          return [kd(r.created_at), T(r.sender === 'owner' ? 'X_OWNER' : 'X_STAFF'), r.staff_id ? staffN.get(r.staff_id) || '' : T('X_ALL_STAFF'), T('MK_' + r.kind), r.date || '', r.title || '', r.body, attList(r.id).map(a => a.name).join(', '), r.sender === 'owner' ? kd(rc && rc.read_at) : kd(r.owner_read_at), kd(rc && rc.ack_at), r.hash.slice(0, 12)]; })] }];
+    fname = `albago_messages_${from}_${to}.xlsx`;
   } else fail(404, 'NOT_FOUND');
   audit(c.s.storeId, c.s.user.login_id, 'EXPORT ' + c.p.kind);
   const buf = XLSX.build(sheets);
@@ -731,6 +759,135 @@ route('POST', '/api/owner/contracts', 'owner', (c) => {
 });
 route('GET', '/api/owner/contracts/:id', 'owner', (c) => { const r = q1('SELECT * FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); if (!r) fail(404, 'NOT_FOUND'); return { ...r, fields: JSON.parse(r.fields) }; });
 route('DELETE', '/api/owner/contracts/:id', 'owner', (c) => { run('DELETE FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); return { ok: true }; });
+
+// ════════ 소통 채널 (기록 보존: 삭제·수정 불가, 매장별 해시 체인) ════════
+const OWNER_KINDS = ['notice', 'instruction', 'general', 'warning', 'discipline', 'dismissal'];
+const STAFF_KINDS = ['general', 'suggestion', 'absence_reason', 'schedule_request'];
+const ACK_DEFAULT = new Set(['notice', 'instruction', 'warning', 'discipline', 'dismissal']);
+const ATT_TYPES = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/;
+const sha = b => crypto.createHash('sha256').update(b).digest('hex');
+function createMessage(storeId, m, attachments, ip) {
+  const atts = (Array.isArray(attachments) ? attachments : []).slice(0, 3).map(a => {
+    const type = clean(a.type, 60).toLowerCase(), data = Buffer.from(String(a.data || ''), 'base64');
+    if (!ATT_TYPES.test(type)) fail(400, 'ATT_TYPE');
+    if (!data.length || data.length > 5 * 1024 * 1024) fail(400, 'ATT_SIZE');
+    return { id: uid(), name: clean(a.name, 120) || 'file', type, size: data.length, sha256: sha(data), data };
+  });
+  return tx(() => {
+    const prev = q1('SELECT hash FROM messages WHERE store_id=? ORDER BY rowid DESC LIMIT 1', storeId);
+    const row = { id: uid(), store_id: storeId, staff_id: m.staffId || null, sender: m.sender, sender_name: m.senderName, kind: m.kind, title: clean(m.title, 120), body: clean(m.body, 5000), date: isDate(m.date) ? m.date : null, requires_ack: m.requiresAck ? 1 : 0, created_at: nowIso(), ip, prev_hash: prev ? prev.hash : '' };
+    row.hash = sha(JSON.stringify([row.prev_hash, row.id, row.staff_id, row.sender, row.sender_name, row.kind, row.title, row.body, row.date, row.requires_ack, row.created_at, atts.map(a => a.sha256)]));
+    run('INSERT INTO messages(id,store_id,staff_id,sender,sender_name,kind,title,body,date,requires_ack,created_at,ip,prev_hash,hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', row.id, storeId, row.staff_id, row.sender, row.sender_name, row.kind, row.title, row.body, row.date, row.requires_ack, row.created_at, ip, row.prev_hash, row.hash);
+    for (const a of atts) run('INSERT INTO attachments(id,message_id,store_id,name,type,size,sha256,data) VALUES(?,?,?,?,?,?,?,?)', a.id, row.id, storeId, a.name, a.type, a.size, a.sha256, a.data);
+    return row;
+  });
+}
+function verifyChain(storeId) {
+  let prev = '', i = 0;
+  for (const r of q('SELECT * FROM messages WHERE store_id=? ORDER BY rowid', storeId)) {
+    const atts = q('SELECT sha256, data FROM attachments WHERE message_id=? ORDER BY rowid', r.id);
+    if (atts.some(a => sha(a.data) !== a.sha256)) return { ok: false, at: r.created_at, id: r.id };
+    const h = sha(JSON.stringify([r.prev_hash, r.id, r.staff_id, r.sender, r.sender_name, r.kind, r.title, r.body, r.date, r.requires_ack, r.created_at, atts.map(a => a.sha256)]));
+    if (r.prev_hash !== prev || h !== r.hash) return { ok: false, at: r.created_at, id: r.id };
+    prev = r.hash; i++;
+  }
+  return { ok: true, count: i, last: prev.slice(0, 12) };
+}
+const attList = id => q('SELECT id,name,type,size FROM attachments WHERE message_id=? ORDER BY rowid', id);
+function msgOut(r, staffId) {
+  const rc = staffId ? q1('SELECT read_at, ack_at FROM msg_receipts WHERE message_id=? AND staff_id=?', r.id, staffId) : null;
+  return { id: r.id, staffId: r.staff_id, from: r.sender, senderName: r.sender_name, kind: r.kind, title: r.title, body: r.body, date: r.date, requiresAck: !!r.requires_ack, createdAt: r.created_at, ownerReadAt: r.owner_read_at, readAt: rc ? rc.read_at : null, ackAt: rc ? rc.ack_at : null, attachments: attList(r.id), hash: r.hash.slice(0, 12) };
+}
+function unreadForStaff(me) {
+  return q1(`SELECT count(*) n FROM messages m LEFT JOIN msg_receipts r ON r.message_id=m.id AND r.staff_id=? WHERE m.store_id=? AND m.sender='owner' AND (m.staff_id=? OR m.staff_id IS NULL) AND m.created_at>=? AND r.read_at IS NULL`, me.id, me.storeId, me.id, me.createdAt || '').n;
+}
+async function pushTo(staffIds, title, body, data) {
+  const tokens = staffIds.length ? q(`SELECT token FROM push_tokens WHERE staff_id IN (${staffIds.map(() => '?').join(',')})`, ...staffIds).map(r => r.token) : [];
+  if (!tokens.length) return;
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(tokens.map(to => ({ to, title, body, data, sound: 'default' }))), signal: AbortSignal.timeout(8000) });
+  } catch (e) { console.error('push', e.message); }
+}
+route('GET', '/api/staff/messages', 'staff', (c) => {
+  const me = c.s.staff;
+  const rows = q(`SELECT * FROM messages WHERE store_id=? AND (staff_id=? OR (staff_id IS NULL AND created_at>=?)) ORDER BY created_at DESC LIMIT 300`, me.storeId, me.id, me.createdAt || '');
+  const now = nowIso();
+  for (const r of rows) if (r.sender === 'owner') run('INSERT INTO msg_receipts(message_id,staff_id,read_at) VALUES(?,?,?) ON CONFLICT(message_id,staff_id) DO UPDATE SET read_at=COALESCE(read_at, excluded.read_at)', r.id, me.id, now);
+  return { items: rows.map(r => msgOut(r, me.id)), unread: 0 };
+});
+route('POST', '/api/staff/messages', 'staff', (c) => {
+  const b = c.body, me = c.s.staff;
+  if (!STAFF_KINDS.includes(b.kind)) fail(400, 'BAD_REQUEST');
+  if (!clean(b.body)) fail(400, 'REQUIRED', { field: 'body' });
+  const w = limited('msg:' + me.id, 30, 3600000); if (w) fail(429, 'TOO_MANY', { min: w });
+  const row = createMessage(me.storeId, { staffId: me.id, sender: 'staff', senderName: me.name, kind: b.kind, title: b.title, body: b.body, date: b.date }, b.attachments, c.ip);
+  audit(me.storeId, me.name, 'MSG ' + b.kind);
+  return { ok: true, id: row.id };
+}, { maxBody: 22e6 });
+route('POST', '/api/staff/messages/:id/ack', 'staff', (c) => {
+  const me = c.s.staff, m = q1('SELECT * FROM messages WHERE id=? AND store_id=? AND sender=? AND (staff_id=? OR staff_id IS NULL)', c.p.id, me.storeId, 'owner', me.id);
+  if (!m) fail(404, 'NOT_FOUND');
+  const at = nowIso();
+  run('INSERT INTO msg_receipts(message_id,staff_id,read_at,ack_at,ack_ip) VALUES(?,?,?,?,?) ON CONFLICT(message_id,staff_id) DO UPDATE SET read_at=COALESCE(read_at, excluded.read_at), ack_at=COALESCE(ack_at, excluded.ack_at), ack_ip=COALESCE(ack_ip, excluded.ack_ip)', m.id, me.id, at, at, c.ip);
+  audit(me.storeId, me.name, 'ACK ' + m.kind);
+  return { ok: true, ackAt: q1('SELECT ack_at FROM msg_receipts WHERE message_id=? AND staff_id=?', m.id, me.id).ack_at };
+});
+function sendAttachment(c, a) {
+  if (!a) fail(404, 'NOT_FOUND');
+  c.res.writeHead(200, { 'Content-Type': a.type, 'Content-Length': a.size, 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(a.name)}`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" });
+  c.res.end(a.data); return null;
+}
+route('GET', '/api/staff/attachments/:id', 'staff', (c) => {
+  const me = c.s.staff;
+  return sendAttachment(c, q1('SELECT a.* FROM attachments a JOIN messages m ON m.id=a.message_id WHERE a.id=? AND m.store_id=? AND (m.staff_id=? OR m.staff_id IS NULL)', c.p.id, me.storeId, me.id));
+});
+route('POST', '/api/staff/push-token', 'staff', (c) => {
+  const tok = clean(c.body.token, 200);
+  if (!/^Expo(nent)?PushToken\[.+\]$/.test(tok)) fail(400, 'BAD_REQUEST');
+  run('INSERT INTO push_tokens(token,staff_id,updated_at) VALUES(?,?,?) ON CONFLICT(token) DO UPDATE SET staff_id=excluded.staff_id, updated_at=excluded.updated_at', tok, c.s.staff.id, nowIso());
+  return { ok: true };
+});
+route('GET', '/api/owner/messages', 'owner', (c) => {
+  const sid = c.query.get('staffId') || '';
+  const rows = sid === 'notice' ? q('SELECT * FROM messages WHERE store_id=? AND staff_id IS NULL ORDER BY created_at DESC LIMIT 500', c.s.storeId)
+    : sid ? q('SELECT * FROM messages WHERE store_id=? AND staff_id=? ORDER BY created_at DESC LIMIT 500', c.s.storeId, sid)
+    : q('SELECT * FROM messages WHERE store_id=? ORDER BY created_at DESC LIMIT 200', c.s.storeId);
+  if (sid && sid !== 'notice') run("UPDATE messages SET owner_read_at=? WHERE store_id=? AND staff_id=? AND sender='staff' AND owner_read_at IS NULL", nowIso(), c.s.storeId, sid);
+  const staff = q('SELECT id,name,created_at FROM staff WHERE store_id=? AND status<>?', c.s.storeId, 'pending');
+  const items = rows.map(r => {
+    const o = msgOut(r, r.staff_id);
+    if (!r.staff_id) { const rc = q('SELECT staff_id, read_at, ack_at FROM msg_receipts WHERE message_id=?', r.id); o.receipts = staff.filter(s => s.created_at <= r.created_at).map(s => { const x = rc.find(y => y.staff_id === s.id) || {}; return { staffId: s.id, name: s.name, readAt: x.read_at || null, ackAt: x.ack_at || null }; }); }
+    return o;
+  });
+  const unread = Object.fromEntries(q("SELECT staff_id, count(*) n FROM messages WHERE store_id=? AND sender='staff' AND owner_read_at IS NULL GROUP BY staff_id", c.s.storeId).map(r => [r.staff_id, r.n]));
+  return { items, unread };
+});
+route('POST', '/api/owner/messages', 'owner', async (c) => {
+  const b = c.body;
+  if (!OWNER_KINDS.includes(b.kind)) fail(400, 'BAD_REQUEST');
+  if (!clean(b.body)) fail(400, 'REQUIRED', { field: 'body' });
+  const notice = b.kind === 'notice' || !b.staffId;
+  const st = notice ? null : getStaff(c.s.storeId, b.staffId);
+  if (!notice && !st) fail(404, 'NOT_FOUND');
+  const owner = q1('SELECT owner_name, name FROM stores WHERE id=?', c.s.storeId);
+  const row = createMessage(c.s.storeId, { staffId: notice ? null : st.id, sender: 'owner', senderName: owner.owner_name || c.s.user.login_id, kind: notice ? 'notice' : b.kind, title: b.title, body: b.body, date: b.date, requiresAck: b.requiresAck ?? ACK_DEFAULT.has(b.kind) }, b.attachments, c.ip);
+  audit(c.s.storeId, c.s.user.login_id, `MSG ${row.kind} ${st ? st.name : 'ALL'}`);
+  const targets = notice ? q('SELECT id, lang FROM staff WHERE store_id=? AND status=?', c.s.storeId, 'active') : [{ id: st.id, lang: st.lang }];
+  for (const lang of ['ko', 'en']) { const ids = targets.filter(x => (x.lang || 'ko') === lang).map(x => x.id); if (ids.length) pushTo(ids, 'ALBAGO 알바고', `[${t(lang, 'MK_' + row.kind)}] ${row.title || row.body.slice(0, 40)}`, { type: 'message', id: row.id }); }
+  return { ok: true, id: row.id };
+}, { maxBody: 22e6 });
+route('GET', '/api/owner/attachments/:id', 'owner', (c) => sendAttachment(c, q1('SELECT * FROM attachments WHERE id=? AND store_id=?', c.p.id, c.s.storeId)));
+route('GET', '/api/owner/messages/verify', 'owner', (c) => verifyChain(c.s.storeId));
+
+// 상시근로자 수 계산 (참고용)
+route('GET', '/api/owner/workforce', 'owner', (c) => {
+  const to = isDate(c.query.get('to')) ? c.query.get('to') : C.addDays(C.todayKst(), -1);
+  const [y, m, d] = to.split('-').map(Number);
+  const from = C.addDays(new Date(Date.UTC(y, m - 2, Math.min(d, 28))).toISOString().slice(0, 10), 1);
+  const counts = {};
+  for (const r of q('SELECT date, count(DISTINCT staff_id) n FROM records WHERE store_id=? AND date BETWEEN ? AND ? GROUP BY date', c.s.storeId, from, to)) counts[r.date] = r.n;
+  return { from, to, extra: Math.max(0, parseInt(c.query.get('extra')) || 0), ...C.workforce(counts, Math.max(0, parseInt(c.query.get('extra')) || 0)) };
+});
 
 // 기록부 기기 등록·감사 기록·비밀번호
 route('POST', '/api/owner/kiosk', 'owner', (c) => {
@@ -761,7 +918,7 @@ const server = http.createServer(async (req, res) => {
     const c = { req, res, lang, ip: clientIp(req), query: url.searchParams, p: r.re.exec(url.pathname).groups || {} };
     if (r.auth === 'kiosk') { c.k = kioskOf(req); if (!c.k) fail(401, 'KIOSK_REQUIRED'); }
     else if (r.auth) { c.s = session(req); if (!c.s || (r.auth !== 'any' && c.s.role !== r.auth)) fail(401, 'LOGIN_REQUIRED'); }
-    c.body = req.method === 'GET' ? {} : await readBody(req);
+    c.body = req.method === 'GET' ? {} : await readBody(req, r.maxBody);
     let out = await r.fn(c);
     if (out === null) return;
     send(res, 200, out);

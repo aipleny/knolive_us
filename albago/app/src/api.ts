@@ -20,7 +20,20 @@ export interface HomeData {
   shifts: { date: string; shift: Shift | null }[];
   month: { from: string; to: string; workedMin: number; gross: number; net: number; holidayPay: number };
   records: { date: string; in: string; out: string | null; breaks: { start: string; end: string | null }[] }[];
+  unread?: number;
 }
+export type MessageKind =
+  | 'notice' | 'instruction' | 'general' | 'warning' | 'discipline' | 'dismissal'
+  | 'suggestion' | 'absence_reason' | 'schedule_request';
+export type StaffKind = 'general' | 'suggestion' | 'absence_reason' | 'schedule_request';
+export interface Attachment { id: string; name: string; type: string; size: number }
+export interface Message {
+  id: string; from: 'owner' | 'staff'; kind: MessageKind; title: string; body: string; date: string | null;
+  createdAt: string; readAt: string | null; requiresAck: boolean; ackAt: string | null;
+  attachments: Attachment[]; hash: string;
+}
+export interface NewAttachment { name: string; type: string; data: string }
+export interface NewMessage { kind: StaffKind; title?: string; body: string; date?: string; attachments: NewAttachment[] }
 export type LoginResult =
   | { ok: true; role: 'staff' | 'owner'; token: string }
   | { otp: true; otpId: string; emailMasked: string };
@@ -39,19 +52,26 @@ export class ApiError extends Error {
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: (() => void) | null) => { onUnauthorized = fn; };
 
-export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** Base URL + auth/lang headers, also used for authenticated image/file downloads. */
+export async function endpoint(path: string) {
   const [base, token, lang] = await Promise.all([getServerUrl(), getItem('token'), getItem('lang')]);
-  const headers: Record<string, string> = { Accept: 'application/json', 'X-Lang': lang === 'en' ? 'en' : 'ko' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const headers: Record<string, string> = { 'X-Lang': lang === 'en' ? 'en' : 'ko' };
   if (token) headers.Authorization = `Bearer ${token}`;
+  return { url: base + path, headers, token, lang };
+}
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const { url, headers, token, lang } = await endpoint(path);
+  headers.Accept = 'application/json';
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  const ctrl = new AbortController(); // longer timeout for uploads (base64 attachments)
+  const timer = setTimeout(() => ctrl.abort(), payload && payload.length > 100000 ? 120000 : 15000);
   let res: Response;
   try {
-    res = await fetch(base + path, {
-      method, headers, signal: ctrl.signal,
-      body: body === undefined ? undefined : JSON.stringify(body),
+    res = await fetch(url, {
+      method, headers, signal: ctrl.signal, body: payload,
     });
   } catch {
     throw new ApiError(0, 'NETWORK', lang === 'en' ? 'Cannot reach the server.' : '서버에 연결할 수 없어요.');
@@ -78,4 +98,9 @@ export const api = {
   geo: (event: 'enter' | 'exit', c: Coords | null, at: string) =>
     request<GeoResult>('POST', '/api/staff/geo', { event, ...c, at }),
   setPin: (pin: string) => request<{ ok: boolean }>('PUT', '/api/staff/pin', { pin }),
+  messages: () => request<{ items: Message[]; unread: number }>('GET', '/api/staff/messages'),
+  sendMessage: (m: NewMessage) => request<{ ok: boolean; id: string }>('POST', '/api/staff/messages', m),
+  ack: (id: string) => request<{ ok: boolean; ackAt: string }>('POST', `/api/staff/messages/${encodeURIComponent(id)}/ack`),
+  pushToken: (token: string) => request<{ ok: boolean }>('POST', '/api/staff/push-token', { token }),
+  attachmentPath: (id: string) => `/api/staff/attachments/${encodeURIComponent(id)}`,
 };

@@ -39,7 +39,7 @@ async function show(x) {
   tab = x; history.replaceState(null, '', '#' + x);
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === x));
   $$('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== x);
-  try { await ({ today: renderToday, staff: renderStaff, schedule: renderSchedule, records: renderRecords, payroll: renderPayroll, contract: renderContract, settings: renderSettings })[x](); } catch (e) { fail(e); }
+  try { await ({ today: renderToday, staff: renderStaff, schedule: renderSchedule, records: renderRecords, payroll: renderPayroll, messages: renderMessages, contract: renderContract, settings: renderSettings })[x](); } catch (e) { fail(e); }
 }
 
 // ═══ 오늘 ═══
@@ -52,9 +52,9 @@ async function renderToday() {
   if (pending.length) alerts.push(t('AL_PENDING', { n: pending.length }));
   if (O.store.lat == null) alerts.push(t('AL_NO_LOCATION'));
   for (const s of staff) {
-    if (minWage() && s.hourlyWage < minWage()) alerts.push(t('AL_MINWAGE', { name: s.name, wage: won(s.hourlyWage), min: won(minWage()) }));
+    if (s.payType !== 'monthly' && minWage() && s.hourlyWage < minWage()) alerts.push(t('AL_MINWAGE', { name: s.name, wage: won(s.hourlyWage), min: won(minWage()) }));
     const next = O.store.settings.minWages[+d.slice(0, 4) + 1];
-    if (next && s.hourlyWage < next && d.slice(5) >= '11-01') alerts.push(t('AL_NEXT_MINWAGE', { name: s.name, min: won(next) }));
+    if (next && s.payType !== 'monthly' && s.hourlyWage < next && d.slice(5) >= '11-01') alerts.push(t('AL_NEXT_MINWAGE', { name: s.name, min: won(next) }));
     for (const [k, label] of [['visaExpiry', 'VISA_EXPIRY'], ['healthCert', 'HEALTH_CERT']]) if (s[k] && s[k] <= addDays(d, 30)) alerts.push(t('AL_EXPIRE', { name: s.name, what: t(label), date: s[k] }));
     if (s.nationality === 'FOREIGN' && /^D-?[24]/i.test(s.visa || '')) alerts.push(t('AL_D2', { name: s.name }));
     const age = ageOn(s.birth, d); if (age !== null && age < 18) alerts.push(t('AL_MINOR', { name: s.name, age }));
@@ -91,7 +91,7 @@ function renderStaff() {
   <div class="spread section"><h2>${t('TAB_STAFF')}</h2><div class="row"><label class="chk"><input type="checkbox" id="show-retired" ${showRetired ? 'checked' : ''}> ${t('SHOW_RETIRED')}</label><button class="btn primary" id="add-staff">+ ${t('ADD_STAFF')}</button></div></div>
   <div class="table-wrap"><table><thead><tr><th>${t('NAME')}</th><th>${t('MOBILE')}</th><th>${t('TYPE')}</th><th class="num">${t('WAGE')}</th><th>${t('WEEKLY_PATTERN')}</th><th>${t('DEDUCTION')}</th><th>${t('FS_EMERGENCY')}</th><th>${t('ACCOUNT_STATUS')}</th><th></th></tr></thead><tbody>
   ${list.map(s => { const wm = [0, 1, 2, 3, 4, 5, 6].reduce((a, d) => a + shiftMin((s.pattern || {})[d]), 0); return `<tr><td><span style="color:${esc(s.color || '#2459e0')}">●</span> <b>${esc(s.name)}</b>${s.position ? `<br><span class="muted">${esc(s.position)}</span>` : ''}</td><td>${esc(s.phone)}</td>
-    <td>${s.nationality === 'FOREIGN' ? `<span class="pill warn">${t('FOREIGNER')}</span> ${esc(s.visa || '')}` : t('KOREAN')}</td><td class="num">${won(s.hourlyWage)}${minWage() && s.hourlyWage < minWage() ? `<br><span class="pill out">${t('BELOW_MIN')}</span>` : ''}</td>
+    <td>${s.nationality === 'FOREIGN' ? `<span class="pill warn">${t('FOREIGNER')}</span> ${esc(s.visa || '')}` : t('KOREAN')}</td><td class="num">${s.payType === 'monthly' ? `${t('PT_MONTHLY')} ${won(s.monthlySalary)}` : won(s.hourlyWage)}${s.payType !== 'monthly' && minWage() && s.hourlyWage < minWage() ? `<br><span class="pill out">${t('BELOW_MIN')}</span>` : ''}</td>
     <td>${wm ? hours(wm) : '-'}${wm && wm < 900 ? ` <span class="pill">${t('NO_HOLIDAY_PAY')}</span>` : ''}</td><td>${t({ none: 'DED_NONE', '3.3': 'DED_33', insurance: 'DED_INS' }[s.deduction || 'none'])}</td>
     <td>${esc([s.emergencyName, s.emergencyRelation, s.emergencyPhone].filter(Boolean).join(' · '))}</td>
     <td>${s.status === 'retired' ? `<span class="pill">${t('RETIRED')}</span>` : ''}${s.hasLogin ? `<span class="pill in">${t('APP_ON')}</span>` : ''} ${s.hasPin ? '' : `<span class="pill out">${t('NO_PIN')}</span>`}</td>
@@ -111,6 +111,8 @@ function openStaff(s) {
   f.nationality.value = s ? s.nationality || 'KR' : 'KR';
   f.durunuri.checked = !!(s && s.durunuri);
   f.lang.value = s ? s.lang || 'ko' : 'ko';
+  $('#weekly-holiday').innerHTML = [0, 1, 2, 3, 4, 5, 6].map(d => `<option value="${d}">${DOWS()[d]}</option>`).join('');
+  f.weeklyHoliday.value = s && s.weeklyHoliday !== undefined ? s.weeklyHoliday : 0; f.payType.value = (s && s.payType) || 'hourly';
   for (const k of ['pension', 'health', 'employment', 'industrial']) { const sel = f['ins_' + k]; sel.innerHTML = ['auto', 'yes', 'no'].map(v => `<option value="${v}">${t('INS_' + v.toUpperCase())}</option>`).join(''); sel.value = (s && s.insurance && s.insurance[k]) || 'auto'; }
   if (!s) { f.hourlyWage.value = minWage() || ''; f.startDate.value = O.today; f.color.value = ['#2459e0', '#14966b', '#d4570f', '#8e44ad', '#c0392b', '#16a2b8', '#b8860b'][O.staff.length % 7]; }
   $('#rrn-now').innerHTML = s && s.rrnMasked ? `${esc(s.rrnMasked)} · <a href="#" data-reveal>${t('VIEW')}</a>` : '';
@@ -122,12 +124,16 @@ function openStaff(s) {
   $('#pat-copy').onclick = () => { const m = $('#pattern [data-d="1"]'); for (const d of [2, 3, 4, 5]) { const r = $(`#pattern [data-d="${d}"]`); for (const c of ['p-s', 'p-e', 'p-bs', 'p-be']) r.querySelector('.' + c).value = m.querySelector('.' + c).value; } };
   $('#staff-delete').hidden = !s; $('#staff-status').hidden = !s || s.status === 'pending';
   $('#staff-status').textContent = s && s.status === 'retired' ? t('REACTIVATE') : t('RETIRE');
-  nat(); wageHint();
+  nat(); payTypeToggle(); wageHint();
   $('#staff-dlg').showModal();
 }
 function nat() { const fr = $('#staff-form').nationality.value === 'FOREIGN'; $('#kr-fields').hidden = fr; $('#fr-fields').hidden = !fr; }
-function wageHint() { const w = +$('#staff-form').hourlyWage.value; $('#minwage-hint').textContent = minWage() ? t('MINWAGE_HINT', { y: O.today.slice(0, 4), min: won(minWage()) }) + (w && w < minWage() ? ' ' + t('BELOW_MIN') + '!' : '') : ''; }
-$('#staff-form').addEventListener('change', e => { if (e.target.name === 'nationality') nat(); });
+function payTypeToggle() { const m = $('#staff-form').payType.value === 'monthly'; $('#l-hourly').hidden = m; $('#l-monthly').hidden = $('#l-mhours').hidden = !m; wageHint(); }
+function wageHint() {
+  const f = $('#staff-form');
+  if (f.payType.value === 'monthly') { const wk = PAT_DAYS.reduce((a, d) => { const r = $(`#pattern [data-d="${d}"]`); if (!r) return a; const g = c => r.querySelector('.' + c).value; return a + (g('p-s') && g('p-e') ? shiftMin({ start: g('p-s'), end: g('p-e'), breaks: g('p-bs') && g('p-be') ? [{ start: g('p-bs'), end: g('p-be') }] : [] }) : 0); }, 0) / 60; const sal = +f.monthlySalary.value, h = +f.monthlyHours.value || (wk ? Math.round((wk + (wk >= 15 ? Math.min(wk, 40) / 40 * 8 : 0)) * 365 / 7 / 12) : 209), rate = sal ? Math.round(sal / h) : 0; $('#minwage-hint').textContent = t('MONTHLY_HINT', { h, rate: won(rate), min: won(minWage()) }) + (rate && minWage() && rate < minWage() ? ' ' + t('BELOW_MIN') + '!' : ''); return; } const w = +$('#staff-form').hourlyWage.value; $('#minwage-hint').textContent = minWage() ? t('MINWAGE_HINT', { y: O.today.slice(0, 4), min: won(minWage()) }) + (w && w < minWage() ? ' ' + t('BELOW_MIN') + '!' : '') : ''; }
+$('#staff-form').addEventListener('change', e => { if (e.target.name === 'nationality') nat(); if (e.target.name === 'payType') payTypeToggle(); });
+$('#staff-form').monthlySalary.addEventListener('input', wageHint); $('#pattern').addEventListener('input', wageHint); $('#staff-form').monthlyHours.addEventListener('input', wageHint);
 $('#staff-form').hourlyWage.addEventListener('input', wageHint);
 $('#staff-form').onsubmit = async e => {
   e.preventDefault(); const f = e.target, b = {};
@@ -269,10 +275,10 @@ async function renderPayroll() {
     <label class="f" id="l-month"><span>${t('MONTH')}</span><input type="month" id="pf-month" value="${PF.month}"></label><label class="f" id="l-week"><span>${t('WEEK_PICK')}</span><input type="date" id="pf-week" value="${PF.week}"></label>
     <label class="f" id="l-from"><span>${t('FROM')}</span><input type="date" id="pf-from" value="${PF.from}"></label><label class="f" id="l-to"><span>${t('TO')}</span><input type="date" id="pf-to" value="${PF.to}"></label>
     <label class="f"><span>${t('PAY_DATE')}</span><input type="date" id="pf-paydate" value="${PF.payDate}"></label><button class="btn" id="pf-go">${t('CALCULATE')}</button></div>
-    <p class="muted" style="margin-top:8px">${PF.from} ~ ${PF.to} · ${t(O.store.settings.fivePlus ? 'FIVE_ON' : 'FIVE_OFF')} · ${t('HOLIDAY_RULE_SHORT')}${monthly ? '' : ' · ' + t('INS_MONTHLY_ONLY')}</p></div>
+    <p class="muted" style="margin-top:8px">${PF.from} ~ ${PF.to} · ${t(O.store.settings.fivePlus ? 'FIVE_ON' : 'FIVE_OFF')} (${rateLine()}) · ${t('HOLIDAY_RULE_SHORT')}${monthly ? '' : ' · ' + t('INS_MONTHLY_ONLY')}</p></div>
   <div class="kpis"><div class="card stat"><span>${t('WORK_HOURS')}</span><strong>${hours(sum('workedMin'))}</strong></div><div class="card stat"><span>${t('GROSS')}</span><strong>${won(sum('gross'))}</strong></div><div class="card stat"><span>${t('NET_TOTAL')}</span><strong>${won(sum('net'))}</strong></div><div class="card stat"><span>${t('TOTAL_COST')}</span><strong>${won(sum('totalCost'))}</strong></div></div>
   <div class="table-wrap"><table><thead><tr><th>${t('NAME')}</th><th class="num">${t('WAGE')}</th><th class="num">${t('WORK_HOURS')}</th><th class="num">${t('BASE_PAY')}</th><th class="num">${t('HOLIDAY_PAY')}</th><th class="num">${t('EXTRA_PAY')}</th><th class="num">${t('GROSS')}</th><th class="num">${t('DEDUCTIONS')}</th><th class="num">${t('NET')}</th><th class="num">${t('EMPLOYER_INS')}</th><th></th></tr></thead><tbody>
-  ${data.list.map((p, i) => `<tr><td><b>${esc(p.name)}</b>${p.warnings.map(w => `<br><span class="pill out">${esc(t(w.code, { ...w, wage: won(w.wage), min: won(w.min) }))}</span>`).join('')}</td><td class="num">${won(p.wage)}</td><td class="num">${hours(p.workedMin)}</td><td class="num">${won(p.base)}</td><td class="num">${won(p.holidayPay)}</td><td class="num">${won(p.overtimePay + p.nightPay)}</td><td class="num">${won(p.gross)}</td><td class="num">${won(p.deductionTotal)}</td><td class="num"><b>${won(p.net)}</b></td><td class="num">${won(p.employerCost)}</td>
+  ${data.list.map((p, i) => `<tr><td><b>${esc(p.name)}</b>${p.payType === 'monthly' ? ` <span class="pill">${t('PT_MONTHLY')}</span>` : ''}${p.warnings.map(w => `<br><span class="pill out">${esc(t(w.code, { ...w, wage: won(w.wage), min: won(w.min) }))}</span>`).join('')}</td><td class="num">${won(p.wage)}</td><td class="num">${hours(p.workedMin)}</td><td class="num">${won(p.base)}</td><td class="num">${won(p.holidayPay)}${p.publicHolidayPay ? `<br><small class="muted">+${t('PAID_HOLIDAY')} ${won(p.publicHolidayPay)}</small>` : ''}</td><td class="num">${won(p.overtimePay + p.nightPay + p.holidayWorkPay + p.excessPay)}</td><td class="num">${won(p.gross)}</td><td class="num">${won(p.deductionTotal)}</td><td class="num"><b>${won(p.net)}</b></td><td class="num">${won(p.employerCost)}</td>
     <td><div class="row" style="flex-wrap:nowrap"><button class="btn small" data-det="${i}">${t('DETAIL')}</button><button class="btn small" data-slip="${i}">${t('PAYSLIP')}</button></div></td></tr>
     <tr data-det-row="${i}" hidden><td colspan="11" style="background:#fafbfd">${payDetail(p)}</td></tr>`).join('') || `<tr><td colspan="11" class="muted">${t('NO_STAFF')}</td></tr>`}</tbody></table></div>
   <div class="infobox">${t('PAY_INFO')}</div>`;
@@ -287,7 +293,22 @@ async function renderPayroll() {
   $('#slip-all').onclick = () => printDoc(data.list.map((p, i) => `<div class="${i ? 'page-break' : ''}">${payslipHTML(p, data.store, PF.payDate, foreign(p))}</div>`).join(''));
   $('#x-pay').onclick = () => download(`/api/owner/export/payroll.xlsx?from=${PF.from}&to=${PF.to}`);
 }
+function curRates() { const r = O.store.settings.premiums || {}, f = O.store.settings.fivePlus, v = (k, d) => (r[k] === undefined || r[k] === '' ? d : +r[k]); return { overtime: v('overtime', f ? 50 : 0), night: v('night', f ? 50 : 0), holiday: v('holiday', f ? 50 : 0), holidayOver8: v('holidayOver8', f ? 100 : 0), partTimeExcess: v('partTimeExcess', f ? 50 : 0) }; }
+function rateLine() { const r = O.store.settings.premiums || {}, f = O.store.settings.fivePlus, v = (k, d) => r[k] ?? d; return t('RATES_LINE', { o: v('overtime', f ? 50 : 0), n: v('night', f ? 50 : 0), h: v('holiday', f ? 50 : 0), h8: v('holidayOver8', f ? 100 : 0), x: v('partTimeExcess', f ? 50 : 0) }); }
 function payDetail(p) {
+  const R = p.rates, L = [];
+  L.push([t('BASE_PAY'), p.payType === 'monthly' ? t('BASE_MONTHLY', { s: won(p.monthlySalary), h: p.stdHours, r: won(p.wage) }) : `${hours(p.workedMin)} × ${won(p.wage)}`, p.base]);
+  if (p.holidayPay) L.push([t('HOLIDAY_PAY'), '', p.holidayPay]);
+  if (p.overtimeMin) L.push([t('OT_PAY'), `${hours(p.overtimeMin)} × ${won(p.wage)} × ${R.overtime}%`, p.overtimePay]);
+  if (p.nightMin) L.push([t('NIGHT_PAY'), `${hours(p.nightMin)} × ${won(p.wage)} × ${R.night}%`, p.nightPay]);
+  if (p.holidayMin || p.holidayOver8Min) L.push([t('HOLIDAY_WORK_PAY'), `${hours(p.holidayMin)} × ${R.holiday}% + ${hours(p.holidayOver8Min)} × ${R.holidayOver8}%`, p.holidayWorkPay]);
+  if (p.excessMin) L.push([t('EXCESS_PAY'), `${hours(p.excessMin)} × ${won(p.wage)} × ${R.partTimeExcess}%`, p.excessPay]);
+  for (const h of p.paidHolidays) L.push([t('PAID_HOLIDAY'), md(h.date), h.amount]);
+  if (p.allowance) L.push([t('ALLOWANCE'), '', p.allowance]);
+  const items = `<table style="margin-bottom:10px"><thead><tr><th>${t('PAY_ITEM')}</th><th>${t('PAY_CALC')}</th><th class="num">${t('AMOUNT')}</th></tr></thead><tbody>${L.map(([a, b, c]) => `<tr><td>${a}</td><td class="muted">${esc(b)}</td><td class="num">${won(c)}</td></tr>`).join('')}</tbody></table>`;
+  return items + payDetail0(p);
+}
+function payDetail0(p) {
   const weeks = `<table><thead><tr><th>${t('WEEK')}</th><th>${t('SCHEDULED')}</th><th>${t('WORKED')}</th><th>${t('HOLIDAY_JUDGE')}</th><th class="num">${t('HOLIDAY_PAY')}</th></tr></thead><tbody>${p.weeks.map(w => `<tr><td>${md(w.start)} ~ ${md(w.end)}</td><td>${hours(w.scheduledMin)}</td><td>${hours(w.workedMin)}</td><td>${t('HW_' + w.status.toUpperCase(), { days: w.missing.map(d => d.slice(5)).join(', ') })}</td><td class="num">${w.counted ? won(w.holidayPay) : `<span class="muted">${t('OTHER_PERIOD')}</span>`}</td></tr>`).join('')}</tbody></table>`;
   const ded = p.deductions.length ? `<p style="margin-top:8px">${t('DEDUCTIONS')}: ${p.deductions.map(d => `${t('D_' + d.key)} ${won(d.amount)}`).join(' · ')}</p>` : '';
   let ins = '';
@@ -316,7 +337,7 @@ function renderContract() {
   const s = staffById(ctStaff), st = O.store;
   if (!s) { panel('contract').innerHTML = `<div class="card">${t('NO_STAFF')}</div>`; return; }
   ctType = ctType || autoType(s);
-  const hol = [0, 6, 5, 4, 3, 2, 1].find(d => !(s.pattern && s.pattern[d])) ?? 0;
+  const hol = s.weeklyHoliday !== undefined && s.weeklyHoliday !== '' ? +s.weeklyHoliday : [0, 6, 5, 4, 3, 2, 1].find(d => !(s.pattern && s.pattern[d])) ?? 0;
   const KDOW = ['일', '월', '화', '수', '목', '금', '토'];
   panel('contract').innerHTML = `<div class="spread section"><h2>${t('TAB_CONTRACT')}</h2></div>
   <div class="card section"><form id="ct-form" class="grid g3">
@@ -324,7 +345,7 @@ function renderContract() {
     <label class="f" style="grid-column:span 2"><span>${t('CT_TYPE')}</span><select id="ct-type">${Object.entries(CONTRACT_TYPES).map(([k, v]) => `<option value="${k}" ${k === ctType ? 'selected' : ''}>${v}${k === autoType(s) ? ' ★' : ''}</option>`).join('')}</select></label>
     <label class="f"><span>${t('START_DATE')}</span><input name="startDate" type="date" value="${esc(s.startDate || O.today)}"></label><label class="f"><span>${t('END_DATE')}</span><input name="endDate" type="date" value="${esc(s.endDate || '')}"></label><label class="f"><span>${t('SIGN_DATE')}</span><input name="signDate" type="date" value="${O.today}"></label>
     <label class="f"><span>${t('WORKPLACE')}</span><input name="place" value="${esc(st.address ? `${st.name} (${st.address})` : st.name)}"></label><label class="f" style="grid-column:span 2"><span>${t('JOB_DESC')}</span><input name="job" value="${esc(s.jobDesc || s.position || '')}"></label>
-    <label class="f"><span>${t('WAGE')}</span><input name="wage" type="number" value="${esc(s.hourlyWage)}"></label>
+    <label class="f"><span>${t(s.payType === 'monthly' ? 'MONTHLY_SALARY' : 'WAGE')}</span><input name="wage" type="number" value="${esc(s.payType === 'monthly' ? s.monthlySalary : s.hourlyWage)}"></label>
     <label class="f"><span>${t('WEEKLY_HOLIDAY')}</span><select name="weeklyHoliday">${KDOW.map((d, i) => `<option value="${d}" ${i === hol ? 'selected' : ''}>${DOWS()[i]}</option>`).join('')}</select></label>
     <label class="f"><span>${t('PAY_DAY')}</span><input name="payDay" type="number" min="1" max="31" value="${esc(st.settings.payDay)}"></label>
     <label class="f"><span>${t('BONUS')}</span><input name="bonus"></label><label class="f"><span>${t('OTHER_PAY')}</span><input name="otherPay"></label>
@@ -356,10 +377,11 @@ function ctFields(s) {
   const f = $('#ct-form'), v = n => f.elements[n] ? (f.elements[n].type === 'checkbox' ? f.elements[n].checked : f.elements[n].value) : '';
   const st = O.store;
   return {
+    payType: s.payType || 'hourly', monthlySalary: s.payType === 'monthly' ? +$('#ct-form').elements.wage.value : 0, rates: curRates(), otRate: curRates().partTimeExcess,
     type: $('#ct-type').value, store: { name: st.name, owner: st.ownerName, bizNo: st.bizNo, address: st.address, phone: st.phone, industry: st.industry }, fivePlus: st.settings.fivePlus,
     worker: { name: s.name, phone: s.phone, address: s.address, birth: s.birth, age: ageOn(s.birth, O.today), country: s.country, homeAddress: s.homeAddress, visa: s.visa },
     days: Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(d => [d, (s.pattern || {})[d] || null])),
-    startDate: v('startDate'), endDate: v('endDate'), signDate: v('signDate'), place: v('place'), job: v('job'), wage: +v('wage'), weeklyHoliday: v('weeklyHoliday'), payDay: v('payDay'), bonus: v('bonus'), otherPay: v('otherPay'), payMethod: v('payMethod'),
+    startDate: v('startDate'), endDate: v('endDate'), signDate: v('signDate'), place: v('place'), job: v('job'), wage: s.payType === 'monthly' ? Math.round(+v('wage') / (+s.monthlyHours || 209)) : +v('wage'), weeklyHoliday: v('weeklyHoliday'), payDay: v('payDay'), bonus: v('bonus'), otherPay: v('otherPay'), payMethod: v('payMethod'),
     insurance: { employment: v('ins_employment'), industrial: v('ins_industrial'), pension: v('ins_pension'), health: v('ins_health') },
     entry: v('entry'), probation: v('probation'), probationWage: v('probationWage'), housing: v('housing'), housingNote: v('housingNote'), meals: v('meals'), mealsNote: v('mealsNote'),
     minorDocs: v('minorDocs'), guardian: { name: v('g_name'), relation: v('g_relation'), birth: v('g_birth'), phone: v('g_phone'), address: v('g_address') },
@@ -389,8 +411,20 @@ async function renderSettings() {
     <label class="f"><span>${t('EXIT_GRACE')}</span><input name="exitGraceMin" type="number" value="${g.exitGraceMin}"></label>
     <label class="chk" style="grid-column:1/-1"><input type="checkbox" name="requireLocation" ${g.requireLocation ? 'checked' : ''}> <span>${t('REQUIRE_LOC')}</span></label></div>
     <button class="btn primary" style="margin-top:12px">${t('SAVE')}</button></form>
+  <form class="card section" id="f-scale"><h2>${t('SCALE_TITLE')}</h2><p class="muted" style="margin:6px 0 12px">${t('SCALE_HELP')}</p>
+    <div class="infobox" id="wf-box">${t('WF_LOADING')}</div>
+    <div class="row" style="margin:8px 0 14px"><label class="f" style="flex-direction:row;align-items:center;gap:8px"><span>${t('WF_EXTRA')}</span><input id="wf-extra" type="number" min="0" value="0" style="width:90px"></label><button type="button" class="btn small" id="wf-calc">${t('WF_CALC')}</button></div>
+    <label class="chk"><input type="checkbox" name="fivePlus" ${s.fivePlus ? 'checked' : ''}> <span><b>${t('FIVE_PLUS')}</b><br><span class="muted">${t('FIVE_PLUS_HELP2')}</span></span></label>
+    <h3 style="margin-top:16px">${t('PREMIUM_TITLE')}</h3><p class="muted">${t('PREMIUM_HELP')}</p>
+    <div class="grid g4" style="margin-top:8px">${[['overtime', 50], ['night', 50], ['holiday', 50], ['holidayOver8', 100], ['partTimeExcess', 50]].map(([k, d]) => `<label class="f"><span>${t('PR_' + k)}</span><input data-prem="${k}" type="number" min="0" max="300" step="5" value="${esc((s.premiums || {})[k] ?? '')}" placeholder="${s.fivePlus ? d : 0}"><small>${t('PR_LEGAL', { d: s.fivePlus ? d : 0 })}</small></label>`).join('')}</div>
+    <div class="row" style="margin-top:8px"><button type="button" class="btn small" id="pr-legal">${t('PR_FILL_LEGAL')}</button><button type="button" class="btn small" id="pr-zero">${t('PR_FILL_ZERO')}</button></div>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" name="publicHolidayPay" ${((s.premiums || {}).publicHolidayPay ?? s.fivePlus) ? 'checked' : ''}> <span><b>${t('PUBLIC_HOLIDAY_PAY')}</b><br><span class="muted">${t('PUBLIC_HOLIDAY_PAY_HELP')}</span></span></label>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" name="laborDay" ${((s.premiums || {}).laborDay ?? true) ? 'checked' : ''}> <span><b>${t('LABOR_DAY')}</b><br><span class="muted">${t('LABOR_DAY_HELP')}</span></span></label>
+    <h3 style="margin-top:16px">${t('HOLIDAY_LIST')}</h3><p class="muted">${t('HOLIDAY_LIST_HELP')}</p>
+    <textarea id="hol-list" style="min-height:140px;margin-top:6px;font-family:ui-monospace,monospace">${esc((s.publicHolidays || []).map(h => `${h.date} ${h.name}`).join('\n'))}</textarea>
+    <div class="row" style="margin-top:6px"><button type="button" class="btn small" data-hol="2026">${t('HOL_LOAD', { y: 2026 })}</button><button type="button" class="btn small" data-hol="2027">${t('HOL_LOAD', { y: 2027 })}</button></div>
+    <button class="btn primary" style="margin-top:12px">${t('SAVE')}</button></form>
   <form class="card section" id="f-rules"><h2>${t('RULES')}</h2><div class="grid g3" style="margin-top:12px">
-    <label class="chk" style="grid-column:1/-1"><input type="checkbox" name="fivePlus" ${s.fivePlus ? 'checked' : ''}> <span><b>${t('FIVE_PLUS')}</b><br><span class="muted">${t('FIVE_PLUS_HELP')}</span></span></label>
     <label class="chk" style="grid-column:1/-1"><input type="checkbox" name="breakAuto" ${s.breakAuto ? 'checked' : ''}> <span><b>${t('BREAK_AUTO')}</b><br><span class="muted">${t('BREAK_AUTO_HELP')}</span></span></label>
     <label class="chk" style="grid-column:1/-1"><input type="checkbox" name="earlyFromSchedule" ${s.earlyFromSchedule ? 'checked' : ''}> <span><b>${t('EARLY_SCHED')}</b><br><span class="muted">${t('EARLY_SCHED_HELP')}</span></span></label>
     <label class="f"><span>${t('ROUNDING')}</span><select name="rounding">${[1, 5, 10, 15, 30].map(x => `<option value="${x}" ${+s.rounding === x ? 'selected' : ''}>${x}${t('MIN_UNIT')}</option>`).join('')}</select></label>
@@ -408,10 +442,25 @@ async function renderSettings() {
   $('#geo-addr').onclick = async () => { const f = $('#f-store'); try { const r2 = await api('/api/owner/geocode', { method: 'POST', body: { address: f.address.value } }); f.lat.value = r2.lat; f.lng.value = r2.lng; toast(r2.address); } catch (e) { toast(e.message, 'error'); } };
   $('#geo-here').onclick = () => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => { const f = $('#f-store'); f.lat.value = p.coords.latitude.toFixed(6); f.lng.value = p.coords.longitude.toFixed(6); toast(t('ACCURACY', { m: Math.round(p.coords.accuracy) })); }, () => toast(t('GEO_DENIED'), 'error'), { enableHighAccuracy: true }) : toast(t('GEO_DENIED'), 'error');
   $('#f-geo').onsubmit = e => { e.preventDefault(); const f = e.target; save({ settings: { geo: { auto: f.auto.checked, radius: f.radius.value, earlyMin: f.earlyMin.value, lateOutMin: f.lateOutMin.value, exitGraceMin: f.exitGraceMin.value, requireLocation: f.requireLocation.checked } } }); };
+  const HOL = { 2026: [['01-01', '신정'], ['02-16', '설날 연휴'], ['02-17', '설날'], ['02-18', '설날 연휴'], ['03-01', '삼일절'], ['03-02', '대체공휴일(삼일절)'], ['05-05', '어린이날'], ['05-24', '부처님오신날'], ['05-25', '대체공휴일(부처님오신날)'], ['06-03', '전국동시지방선거'], ['06-06', '현충일'], ['08-15', '광복절'], ['08-17', '대체공휴일(광복절)'], ['09-24', '추석 연휴'], ['09-25', '추석'], ['09-26', '추석 연휴'], ['10-03', '개천절'], ['10-05', '대체공휴일(개천절)'], ['10-09', '한글날'], ['12-25', '기독탄신일']],
+    2027: [['01-01', '신정'], ['02-06', '설날 연휴'], ['02-07', '설날'], ['02-08', '설날 연휴'], ['02-09', '대체공휴일(설날)'], ['03-01', '삼일절'], ['05-05', '어린이날'], ['05-13', '부처님오신날'], ['06-06', '현충일'], ['08-15', '광복절'], ['08-16', '대체공휴일(광복절)'], ['09-14', '추석 연휴'], ['09-15', '추석'], ['09-16', '추석 연휴'], ['10-03', '개천절'], ['10-04', '대체공휴일(개천절)'], ['10-09', '한글날'], ['10-11', '대체공휴일(한글날)'], ['12-25', '기독탄신일'], ['12-27', '대체공휴일(기독탄신일)']] };
+  $$('[data-hol]').forEach(b => b.onclick = () => { const y = b.dataset.hol, cur = $('#hol-list').value.split('\n').filter(l => l.trim() && !l.startsWith(y)); $('#hol-list').value = [...cur, ...HOL[y].map(([d, n]) => `${y}-${d} ${n}`)].sort().join('\n'); toast(t('HOL_VERIFY')); });
+  const legal = () => $('#f-scale').fivePlus.checked;
+  $('#pr-legal').onclick = () => { const L = { overtime: 50, night: 50, holiday: 50, holidayOver8: 100, partTimeExcess: 50 }; $$('[data-prem]').forEach(i => i.value = legal() ? L[i.dataset.prem] : 0); $('#f-scale').publicHolidayPay.checked = legal(); };
+  $('#pr-zero').onclick = () => $$('[data-prem]').forEach(i => i.value = 0);
+  const wf = async () => { try { const r = await api('/api/owner/workforce?extra=' + (+$('#wf-extra').value || 0)); $('#wf-box').innerHTML = t('WF_RESULT', { from: r.from, to: r.to, days: r.operatingDays, avg: r.average, under: r.daysUnder5, res: t(r.fivePlus ? 'WF_5PLUS' : 'WF_UNDER5') }); } catch (e) { $('#wf-box').textContent = e.message; } };
+  $('#wf-calc').onclick = wf; wf();
+  $('#f-scale').onsubmit = e => {
+    e.preventDefault(); const f = e.target;
+    const bad = []; const publicHolidays = $('#hol-list').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(\d{4}-\d{2}-\d{2})\s*(.*)$/); if (!m) bad.push(l); return m && { date: m[1], name: m[2] }; }).filter(Boolean);
+    if (bad.length) return toast(t('HOL_BAD', { line: bad[0] }), 'error');
+    if (f.fivePlus.checked !== !!s.fivePlus && !confirm(t(f.fivePlus.checked ? 'FIVE_ON_CONFIRM' : 'FIVE_OFF_CONFIRM'))) return;
+    save({ settings: { fivePlus: f.fivePlus.checked, premiums: { ...Object.fromEntries($$('[data-prem]').map(i => [i.dataset.prem, i.value])), publicHolidayPay: f.publicHolidayPay.checked, laborDay: f.laborDay.checked }, publicHolidays } }, renderSettings);
+  };
   $('#f-rules').onsubmit = e => {
     e.preventDefault(); const f = e.target;
     const minWages = Object.fromEntries($$('#mw [data-y]').map(i => [i.dataset.y, +i.value])); if ($('#mw-y').value && $('#mw-v').value) minWages[$('#mw-y').value] = +$('#mw-v').value;
-    save({ settings: { fivePlus: f.fivePlus.checked, breakAuto: f.breakAuto.checked, earlyFromSchedule: f.earlyFromSchedule.checked, rounding: f.rounding.value, payDay: f.payDay.value, payMethod: f.payMethod.value, durunuri: f.durunuri.checked, minWages, rates: Object.fromEntries($$('[data-rate]').map(i => [i.dataset.rate, i.value])) } }, renderSettings);
+    save({ settings: { breakAuto: f.breakAuto.checked, earlyFromSchedule: f.earlyFromSchedule.checked, rounding: f.rounding.value, payDay: f.payDay.value, payMethod: f.payMethod.value, durunuri: f.durunuri.checked, minWages, rates: Object.fromEntries($$('[data-rate]').map(i => [i.dataset.rate, i.value])) } }, renderSettings);
   };
   $('#f-pw').onsubmit = async e => { e.preventDefault(); try { await api('/api/owner/password', { method: 'POST', body: { current: e.target.current.value, next: e.target.next.value } }); e.target.reset(); toast(t('PW_CHANGED'), 'ok'); } catch (err) { toast(err.message, 'error'); } };
   $('#k-reg').onclick = async () => { await api('/api/owner/kiosk', { method: 'POST' }); toast(t('KIOSK_REG_DONE'), 'ok'); renderSettings(); };
@@ -419,4 +468,4 @@ async function renderSettings() {
   $('#audit-btn').onclick = async () => { const rows = await api('/api/owner/audit'); $('#audit').innerHTML = `<div class="table-wrap" style="max-height:360px"><table><tbody>${rows.map(a => `<tr><td>${kstDate(a.at)} ${kstTime(a.at)}</td><td>${esc(a.who)}</td><td>${esc(a.what)}</td></tr>`).join('')}</tbody></table></div>`; };
 }
 
-boot();
+document.addEventListener('DOMContentLoaded', boot);

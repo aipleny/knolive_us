@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { api, ApiError, type HomeData, type PunchAction, type Shift } from '../api';
@@ -6,7 +7,7 @@ import { currentCoords } from '../location';
 import { useSession } from '../session';
 import { Button, C, Card, Row, s, toast } from '../ui';
 
-type Nav = { navigate(name: 'Settings'): void; setOptions(o: object): void };
+type Nav = { navigate(name: 'Settings' | 'Messages'): void; setOptions(o: object): void };
 
 export default function HomeScreen({ navigation }: { navigation: Nav }) {
   const { t, lang, syncGeo } = useSession();
@@ -26,7 +27,8 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
     }
   }, [syncGeo]);
 
-  useEffect(() => { load(); }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reload when the screen gains focus (e.g. back from Messages → unread badge) and on language change.
+  useFocusEffect(useCallback(() => { load(); }, [load, lang]));
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => { if (st === 'active') load(); });
     return () => sub.remove();
@@ -34,14 +36,14 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: data?.store.name ?? t('appName'),
+      title: t('appName'),
       headerRight: () => (
         <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={12}>
           <Text style={{ color: C.brand, fontSize: 16, fontWeight: '600' }}>{t('settings')}</Text>
         </Pressable>
       ),
     });
-  }, [navigation, data?.store.name, t]);
+  }, [navigation, t]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -96,6 +98,7 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
       {error ? <Text style={{ color: C.danger, marginBottom: 10 }}>{error}</Text> : null}
 
       <Card>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 2 }}>{data.store.name}</Text>
         <Text style={s.small}>{dayLabel(today.date, lang)} · {data.me.name}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
           <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: statusColor, marginRight: 8 }} />
@@ -113,6 +116,18 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
             disabled={!!busy} onPress={() => punch(b.action)} />
         ))}
       </View>
+
+      <Pressable onPress={() => navigation.navigate('Messages')} accessibilityRole="button"
+        style={({ pressed }) => [s.card, { flexDirection: 'row', alignItems: 'center', minHeight: 60, opacity: pressed ? 0.7 : 1 }]}>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: C.text }}>✉  {t('messagesBtn')}</Text>
+        {data.unread ? (
+          <View style={{ minWidth: 26, height: 26, borderRadius: 13, backgroundColor: C.danger, alignItems: 'center',
+            justifyContent: 'center', paddingHorizontal: 7, marginRight: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '800' }}>{data.unread > 99 ? '99+' : data.unread}</Text>
+          </View>
+        ) : null}
+        <Text style={{ color: C.sub, fontSize: 20 }}>›</Text>
+      </Pressable>
 
       <Card title={t('thisMonth')}>
         <Row left={t('worked')} right={duration(month.workedMin, t)} />

@@ -7,7 +7,7 @@ $('#f-login').onsubmit = async e => {
   e.preventDefault(); $('#err').textContent = '';
   try {
     const r = await api('/api/auth/login', { method: 'POST', body: { storeCode: $('#storeCode').value, loginId: $('#loginId').value, password: $('#password').value } });
-    if (r.otp) { otpId = r.otpId; $('#f-login').hidden = true; $('#f-otp').hidden = false; $('#otp-help').textContent = t('OTP_HELP', { email: r.emailMasked }); $('#otp').focus(); dev(r); }
+    if (r.otp) { otpId = r.otpId; $('#f-login').hidden = true; $('#f-otp').hidden = false; $('#otp-help').textContent = t('OTP_HELP', { email: r.emailMasked }); $('#otp').focus(); dev(r); if (r.reused) toast(t('OTP_REUSED')); }
     else go(r.role);
   } catch (err) { $('#err').textContent = err.message; }
 };

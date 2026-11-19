@@ -1,6 +1,6 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#152037"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>알바고</title></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#152037"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>ALBAGO 알바고</title></head>
 <body>
-<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바고 <span class="sub" id="store"></span></div></div><div class="row"><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>ALBAGO 알바고 <span class="sub" id="store"></span></div></div><div class="row"><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
 <main class="wrap" style="max-width:560px">
   <section class="card me-hero section">
     <div class="muted" id="hello"></div>
@@ -12,6 +12,15 @@
   <section class="card section"><h3 data-i18n="MY_SHIFTS"></h3><ul class="list" id="shifts"></ul></section>
   <section class="card section"><h3 id="pay-title"></h3><div class="grid" style="margin:12px 0;grid-template-columns:1fr 1fr" id="pay"></div><p class="muted" data-i18n="PAY_ESTIMATE_NOTE"></p></section>
   <section class="card section"><h3 data-i18n="MY_RECORDS"></h3><ul class="list" id="records"></ul></section>
+  <section class="card section" id="msg-sec"><div class="spread"><h3><span data-i18n="TAB_MESSAGES"></span> <span class="badge" id="unread" hidden></span></h3><button class="btn small" id="msg-load" data-i18n="VIEW"></button></div>
+    <div id="msg-box" hidden>
+      <form id="msg-form" class="grid" style="margin:12px 0;gap:8px">
+        <select name="kind"><option value="general" data-i18n="MK_general"></option><option value="suggestion" data-i18n="MK_suggestion"></option><option value="absence_reason" data-i18n="MK_absence_reason"></option><option value="schedule_request" data-i18n="MK_schedule_request"></option></select>
+        <input name="title" data-i18n-ph="X_TITLE" maxlength="120"><input name="date" type="date">
+        <textarea name="body" required data-i18n-ph="X_BODY" maxlength="5000"></textarea>
+        <input type="file" name="files" multiple accept="image/*,application/pdf">
+        <button class="btn primary" data-i18n="SEND"></button><p class="muted" data-i18n="MSG_NO_EDIT"></p></form>
+      <div id="msg-list"></div></div></section>
   <form class="card section" id="pin-form"><h3 data-i18n="MY_PIN"></h3><p class="muted" data-i18n="MY_PIN_HELP"></p><div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" required><button class="btn primary" data-i18n="SAVE"></button></div></form>
 </main>
 <script src="/staff.js"></script></body></html>

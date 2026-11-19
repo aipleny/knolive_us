@@ -1,13 +1,13 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><script src="/docs.js" defer></script><script src="/owner.js" defer></script><title>알바고 사장님</title></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><script src="/docs.js" defer></script><script src="/owner.js" defer></script><script src="/owner-messages.js" defer></script><title>ALBAGO 알바고</title></head>
 <body>
-<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>알바고 <span class="sub" id="store"></span></div></div>
+<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>ALBAGO 알바고 <span class="sub" id="store"></span></div></div>
 <div class="row"><a class="top-btn" href="#" id="kiosk-open" data-i18n="KIOSK_TITLE" style="text-decoration:none"></a><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
 <nav class="tabs" id="tabs">
-  <button data-tab="today" class="active" data-i18n="TAB_TODAY"></button><button data-tab="staff" data-i18n="TAB_STAFF"></button><button data-tab="schedule" data-i18n="TAB_SCHEDULE"></button><button data-tab="records" data-i18n="TAB_RECORDS"></button><button data-tab="payroll" data-i18n="TAB_PAYROLL"></button><button data-tab="contract" data-i18n="TAB_CONTRACT"></button><button data-tab="settings" data-i18n="TAB_SETTINGS"></button>
+  <button data-tab="today" class="active" data-i18n="TAB_TODAY"></button><button data-tab="staff" data-i18n="TAB_STAFF"></button><button data-tab="schedule" data-i18n="TAB_SCHEDULE"></button><button data-tab="records" data-i18n="TAB_RECORDS"></button><button data-tab="payroll" data-i18n="TAB_PAYROLL"></button><button data-tab="messages" data-i18n="TAB_MESSAGES"></button><button data-tab="contract" data-i18n="TAB_CONTRACT"></button><button data-tab="settings" data-i18n="TAB_SETTINGS"></button>
 </nav>
 <main class="wrap">
   <section data-panel="today"></section><section data-panel="staff" hidden></section><section data-panel="schedule" hidden></section><section data-panel="records" hidden></section>
-  <section data-panel="payroll" hidden></section><section data-panel="contract" hidden></section><section data-panel="settings" hidden></section>
+  <section data-panel="payroll" hidden></section><section data-panel="messages" hidden></section><section data-panel="contract" hidden></section><section data-panel="settings" hidden></section>
 </main>
 
 <dialog id="staff-dlg" style="max-width:min(900px,96vw)"><form id="staff-form"><div class="dlg-body" style="max-height:78vh;overflow:auto">
@@ -36,19 +36,23 @@
     <label class="f"><span data-i18n="NAME"></span><input name="emergencyName"></label><label class="f"><span data-i18n="RELATION"></span><input name="emergencyRelation"></label><label class="f"><span data-i18n="PHONE"></span><input name="emergencyPhone" inputmode="tel"></label>
   </div></fieldset>
   <fieldset><legend data-i18n="FS_WORK"></legend><div class="grid g3">
-    <label class="f"><span data-i18n="WAGE"></span><input name="hourlyWage" type="number" min="0" step="10" required></label>
+    <label class="f"><span data-i18n="PAY_TYPE"></span><select name="payType"><option value="hourly" data-i18n="PT_HOURLY"></option><option value="monthly" data-i18n="PT_MONTHLY"></option></select></label>
+    <label class="f" id="l-hourly"><span data-i18n="WAGE"></span><input name="hourlyWage" type="number" min="0" step="1"></label>
+    <label class="f" id="l-monthly" hidden><span data-i18n="MONTHLY_SALARY"></span><input name="monthlySalary" type="number" min="0" step="1"></label>
+    <label class="f" id="l-mhours" hidden><span data-i18n="MONTHLY_HOURS"></span><input name="monthlyHours" type="number" min="0" step="1"></label>
+    <label class="f"><span data-i18n="WEEKLY_HOLIDAY"></span><select name="weeklyHoliday" id="weekly-holiday"></select></label>
     <label class="f"><span data-i18n="START_DATE"></span><input name="startDate" type="date"></label>
     <label class="f"><span data-i18n="END_DATE"></span><input name="endDate" type="date"></label>
     <label class="f"><span data-i18n="POSITION"></span><input name="position"></label>
     <label class="f"><span data-i18n="HEALTH_CERT"></span><input name="healthCert" type="date"></label>
-    <label class="f"><span data-i18n="ALLOWANCE"></span><input name="monthlyAllowance" type="number" min="0" step="1000"></label>
+    <label class="f"><span data-i18n="ALLOWANCE"></span><input name="monthlyAllowance" type="number" min="0" step="1"></label>
     <label class="f" style="grid-column:1/-1"><span data-i18n="JOB_DESC"></span><input name="jobDesc"></label>
   </div><p class="muted" id="minwage-hint"></p></fieldset>
   <fieldset><legend data-i18n="FS_PATTERN"></legend><p class="muted" data-i18n="PATTERN_HELP" style="margin-bottom:8px"></p><div id="pattern" class="grid" style="gap:6px"></div></fieldset>
   <fieldset><legend data-i18n="FS_PAY"></legend><div class="grid g3">
     <label class="f"><span data-i18n="DEDUCTION"></span><select name="deduction"><option value="none" data-i18n="DED_NONE"></option><option value="3.3" data-i18n="DED_33"></option><option value="insurance" data-i18n="DED_INS"></option></select></label>
-    <label class="f"><span data-i18n="NON_TAXABLE"></span><input name="nonTaxable" type="number" min="0" step="1000"></label>
-    <label class="f"><span data-i18n="INCOME_TAX"></span><input name="incomeTax" type="number" min="0" step="10"></label>
+    <label class="f"><span data-i18n="NON_TAXABLE"></span><input name="nonTaxable" type="number" min="0" step="1"></label>
+    <label class="f"><span data-i18n="INCOME_TAX"></span><input name="incomeTax" type="number" min="0" step="1"></label>
     <label class="f"><span data-i18n="BANK"></span><input name="bank"></label><label class="f"><span data-i18n="ACCOUNT"></span> <small id="acct-now"></small><input name="account" autocomplete="off"></label><label class="f"><span data-i18n="HOLDER"></span><input name="accountHolder"></label>
   </div>
   <div id="ins-box" style="margin-top:10px"><p class="muted" data-i18n="INS_OVERRIDE_HELP"></p><div class="grid g4" style="margin-top:6px">

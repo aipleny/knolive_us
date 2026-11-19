@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { api, setUnauthorizedHandler, type Lang, type Store } from './api';
 import { geoSupported, hasBackgroundPermission, requestGeoPermissions, startGeofence, stopGeofence } from './geofence';
 import { deviceLang, makeT, type T } from './i18n';
+import { registerPush } from './push';
 import { DEFAULT_SERVER, getItem, setItem } from './storage';
 
 interface Session {
@@ -69,6 +70,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(() => { signOut(false); });
     return () => setUnauthorizedHandler(null);
   }, [signOut]);
+
+  // Register for push (new messages) once per login / app start while logged in.
+  useEffect(() => { if (loggedIn) registerPush(); }, [loggedIn]);
 
   const runGeo = useCallback(async (s: Store, enabled: boolean, interactive: boolean) => {
     try {

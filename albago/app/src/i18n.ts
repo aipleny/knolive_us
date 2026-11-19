@@ -2,7 +2,7 @@ import { getLocales } from 'expo-localization';
 import type { Lang } from './api';
 
 const ko = {
-  appName: '알바고',
+  appName: 'ALBAGO 알바고',
   storeCode: '매장코드 (사업자번호 10자리)',
   loginId: '아이디',
   password: '비밀번호',
@@ -81,11 +81,49 @@ const ko = {
   confirmLogout: '로그아웃할까요?',
   server: '서버',
   version: '버전',
+  // messages
+  messages: '소통',
+  messagesBtn: '소통 · 메시지',
+  write: '쓰기',
+  compose: '메시지 보내기',
+  k_notice: '공지', k_instruction: '지시사항', k_general: '메시지', k_warning: '경고',
+  k_discipline: '징계', k_dismissal: '해고 통보', k_suggestion: '건의',
+  k_absence_reason: '결근 사유서', k_schedule_request: '근무 변경 요청',
+  fromOwner: '사장님',
+  sent: '보냄',
+  relatedDate: '관련 근무일',
+  createdAt: '작성',
+  readAt: '읽음',
+  unreadMark: '안 읽음',
+  ack: '확인했습니다',
+  ackTitle: '수령 확인',
+  ackMsg: '지금 시각이 이 문서를 받았다는 확인으로 기록됩니다.\n\n수령 확인이며 내용에 동의한다는 뜻은 아닙니다.',
+  ackedAt: '확인함 {t}',
+  ackNeeded: '확인 필요',
+  noMessages: '메시지가 없어요.',
+  kind: '종류',
+  titleOpt: '제목 (선택)',
+  body: '내용',
+  dateOpt: '관련 근무일 (선택, YYYY-MM-DD)',
+  attachments: '사진 첨부 (최대 3장, 각 5MB)',
+  addPhoto: '+ 사진',
+  remove: '삭제',
+  tooBig: '{name}: 5MB를 넘어 첨부할 수 없어요.',
+  bodyRequired: '내용을 입력해 주세요.',
+  dateInvalid: '날짜는 YYYY-MM-DD 형식으로 입력해 주세요.',
+  send: '보내기',
+  sendConfirm: '보낸 메시지는 수정·삭제할 수 없어요. 보낼까요?',
+  sendDone: '보냈어요.',
+  composeNote: '보낸 메시지는 수정하거나 삭제할 수 없으며, 근거 기록으로 보관됩니다.',
+  recordNote: '모든 메시지는 수정·삭제할 수 없는 기록으로 보관됩니다.',
+  openFailed: '파일을 열 수 없어요.',
+  photoPermission: '사진 접근 권한이 필요해요.',
+  close: '닫기',
 };
 type Dict = typeof ko;
 
 const en: Dict = {
-  appName: 'Albago',
+  appName: 'ALBAGO 알바고',
   storeCode: 'Store code (10-digit business no.)',
   loginId: 'ID',
   password: 'Password',
@@ -161,6 +199,43 @@ const en: Dict = {
   confirmLogout: 'Log out?',
   server: 'Server',
   version: 'Version',
+  messages: 'Messages',
+  messagesBtn: 'Messages',
+  write: 'Write',
+  compose: 'New message',
+  k_notice: 'Notice', k_instruction: 'Instruction', k_general: 'Message', k_warning: 'Warning',
+  k_discipline: 'Disciplinary notice', k_dismissal: 'Notice of dismissal', k_suggestion: 'Suggestion',
+  k_absence_reason: 'Absence statement', k_schedule_request: 'Schedule request',
+  fromOwner: 'Owner',
+  sent: 'Sent',
+  relatedDate: 'Related shift',
+  createdAt: 'Created',
+  readAt: 'Read',
+  unreadMark: 'Unread',
+  ack: 'I acknowledge',
+  ackTitle: 'Acknowledge receipt',
+  ackMsg: 'The current time will be recorded as your acknowledgement that you received this document.\n\nThis confirms receipt, not agreement.',
+  ackedAt: 'Acknowledged {t}',
+  ackNeeded: 'Acknowledgement required',
+  noMessages: 'No messages yet.',
+  kind: 'Type',
+  titleOpt: 'Title (optional)',
+  body: 'Message',
+  dateOpt: 'Related shift date (optional, YYYY-MM-DD)',
+  attachments: 'Photos (up to 3, 5MB each)',
+  addPhoto: '+ Photo',
+  remove: 'Remove',
+  tooBig: '{name}: larger than 5MB, cannot attach.',
+  bodyRequired: 'Please enter a message.',
+  dateInvalid: 'Enter the date as YYYY-MM-DD.',
+  send: 'Send',
+  sendConfirm: 'Sent messages cannot be edited or deleted. Send now?',
+  sendDone: 'Sent.',
+  composeNote: 'Sent messages cannot be edited or deleted and are kept as records.',
+  recordNote: 'All messages are kept as records and cannot be edited or deleted.',
+  openFailed: 'Could not open the file.',
+  photoPermission: 'Photo library access is needed.',
+  close: 'Close',
 };
 
 export type TKey = keyof Dict;
@@ -191,6 +266,17 @@ const WD = { ko: ['일', '월', '화', '수', '목', '금', '토'], en: ['Sun', 
 export function dayLabel(date: string, lang: Lang): string {
   const d = new Date(`${date}T00:00:00Z`);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} (${WD[lang][d.getUTCDay()]})`;
+}
+
+export function dateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(new Date(iso).getTime() + KST);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+export function kindLabel(kind: string, t: T): string {
+  const key = `k_${kind}` as TKey;
+  return key in dicts.ko ? t(key) : kind;
 }
 
 export function money(n: number, t: T): string {

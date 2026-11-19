@@ -12,13 +12,20 @@ import { getItem, setItem } from './storage';
 export const GEOFENCE_TASK = 'albago-geofence';
 const MIN_RADIUS = 100; // OS geofencing is unreliable below ~100 m
 
-export async function notify(body: string) {
+export const BRAND = 'ALBAGO 알바고';
+
+/** Android needs a channel before any (local or push) notification is shown. */
+export async function ensureChannel() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: '알바고', importance: Notifications.AndroidImportance.HIGH,
+      name: BRAND, importance: Notifications.AndroidImportance.HIGH,
     });
   }
-  await Notifications.scheduleNotificationAsync({ content: { title: '알바고', body }, trigger: null });
+}
+
+export async function notify(body: string) {
+  await ensureChannel();
+  await Notifications.scheduleNotificationAsync({ content: { title: BRAND, body }, trigger: null });
 }
 
 TaskManager.defineTask<{ eventType: Location.GeofencingEventType; region: Location.LocationRegion }>(
