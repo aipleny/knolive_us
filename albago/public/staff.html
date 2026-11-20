@@ -12,6 +12,12 @@
   <section class="card section"><h3 data-i18n="MY_SHIFTS"></h3><ul class="list" id="shifts"></ul></section>
   <section class="card section"><h3 id="pay-title"></h3><div class="grid" style="margin:12px 0;grid-template-columns:1fr 1fr" id="pay"></div><p class="muted" data-i18n="PAY_ESTIMATE_NOTE"></p></section>
   <section class="card section"><h3 data-i18n="MY_RECORDS"></h3><ul class="list" id="records"></ul></section>
+  <section class="card section" id="pay-sec"><div class="spread"><h3 data-i18n="MY_PAY"></h3><select id="pay-month" style="width:auto"></select></div>
+    <p id="pay-rate" class="muted" style="margin:6px 0"></p><div id="pay-detail"></div>
+    <h4 style="margin:14px 0 6px" data-i18n="MY_PAYSLIPS"></h4><ul class="list" id="slip-list"></ul></section>
+  <section class="card section"><h3 data-i18n="MY_CONTRACTS"></h3><ul class="list" id="ct-list"></ul></section>
+  <section class="card section"><div class="spread"><h3><span data-i18n="NOTIFS"></span> <span class="badge" id="notif-badge" hidden></span></h3><button class="btn small" id="notif-all" data-i18n="READ_ALL"></button></div><ul class="list" id="notif-list"></ul>
+    <details style="margin-top:10px"><summary class="muted" data-i18n="NOTIF_PREFS"></summary><div class="grid" style="margin-top:8px;gap:6px" id="prefs"></div></details></section>
   <section class="card section" id="msg-sec"><div class="spread"><h3><span data-i18n="TAB_MESSAGES"></span> <span class="badge" id="unread" hidden></span></h3><button class="btn small" id="msg-load" data-i18n="VIEW"></button></div>
     <div id="msg-box" hidden>
       <form id="msg-form" class="grid" style="margin:12px 0;gap:8px">

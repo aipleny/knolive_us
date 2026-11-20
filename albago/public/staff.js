@@ -54,5 +54,32 @@ $('#msg-form').onsubmit = async e => {
   try { await api('/api/staff/messages', { method: 'POST', body: { kind: f.kind.value, title: f.title.value, body: f.body.value, date: f.date.value, attachments } }); f.reset(); toast(t('SENT'), 'ok'); loadMsgs(); } catch (err) { toast(err.message, 'error'); }
 };
 
+// 내 급여 · 임금명세서 · 근로계약서 · 알림함
+async function loadPay(month) {
+  const r = await api('/api/staff/pay' + (month ? '?month=' + month : ''));
+  $('#pay-rate').textContent = (r.payType === 'monthly' ? t('MY_RATE_MONTHLY', { s: won(r.monthlySalary), r: won(r.ordinaryRate) }) : t('MY_RATE_HOURLY', { w: won(r.hourlyWage) })) + ' · ' + t('PAYDAY_N', { d: r.payDay });
+  $('#pay-detail').innerHTML = `${r.estimate ? `<span class="pill warn">${t('ESTIMATE')}</span>` : `<span class="pill in">${t('CONFIRMED')}</span>`}
+    <ul class="list">${r.items.map(i => `<li><span>${esc(i.label)}<br><small class="muted">${esc(i.calc)}</small></span><span>${won(i.amount)}</span></li>`).join('')}
+    <li><b>${t('GROSS')}</b><b>${won(r.gross)}</b></li>${r.deductions.map(d => `<li><span class="muted">− ${esc(d.label)}</span><span class="muted">${won(d.amount)}</span></li>`).join('')}
+    <li><b>${t('NET')}</b><b style="font-size:20px">${won(r.net)}</b></li></ul>${r.payslipId ? `<a class="btn small" target="_blank" href="/api/staff/payslips/${r.payslipId}/html">${t('VIEW_PAYSLIP')}</a>` : `<p class="muted">${t('ESTIMATE_NOTE')}</p>`}`;
+}
+async function loadDocs() {
+  const [months, slips, cts, nt, pf] = await Promise.all([api('/api/staff/pay/months'), api('/api/staff/payslips'), api('/api/staff/contracts'), api('/api/staff/notifications'), api('/api/staff/prefs')]);
+  const sel = $('#pay-month'), cur = sel.value; sel.innerHTML = months.months.map(m => `<option>${m}</option>`).join(''); if (cur) sel.value = cur;
+  sel.onchange = () => loadPay(sel.value); loadPay(sel.value);
+  $('#slip-list').innerHTML = slips.items.map(x => `<li><a target="_blank" href="/api/staff/payslips/${x.id}/html">${x.from.slice(5)} ~ ${x.to.slice(5)}${x.viewedAt ? '' : ` <span class="pill warn">${t('NEW')}</span>`}</a><span>${won(x.net)}</span></li>`).join('') || `<li class="muted">${t('NO_RECORDS')}</li>`;
+  $('#ct-list').innerHTML = cts.items.map(x => `<li><a target="_blank" href="/api/staff/contracts/${x.id}/html">${esc(x.title)}</a>${x.receivedAt ? `<span class="pill in">${t('CT_RECEIVED', { at: kstDate(x.receivedAt) })}</span>` : `<button class="btn small primary" data-rcv="${x.id}">${t('CT_RECEIVE_BTN')}</button>`}</li>`).join('') || `<li class="muted">${t('NO_RECORDS')}</li>`;
+  $$('[data-rcv]').forEach(b => b.onclick = async () => { if (!confirm(t('CT_RECEIVE_CONFIRM'))) return; await api(`/api/staff/contracts/${b.dataset.rcv}/receive`, { method: 'POST' }); loadDocs(); });
+  $('#notif-badge').hidden = !nt.unread; $('#notif-badge').textContent = nt.unread;
+  $('#notif-list').innerHTML = nt.items.slice(0, 30).map(n => `<li style="${n.readAt ? 'opacity:.6' : 'font-weight:600'}"><span>${esc(n.title)}<br><small class="muted">${esc(n.body || '')}</small></span><small class="muted">${kstDate(n.createdAt).slice(5)} ${kstTime(n.createdAt)}</small></li>`).join('') || `<li class="muted">${t('NO_RECORDS')}</li>`;
+  $('#prefs').innerHTML = `<label class="chk"><input type="checkbox" data-pref="shiftReminder" ${pf.shiftReminder ? 'checked' : ''}> ${t('PREF_SOON')}</label>
+    <select data-pref="shiftReminderMin" style="width:auto">${[10, 30, 60].map(m => `<option value="${m}" ${+pf.shiftReminderMin === m ? 'selected' : ''}>${t('MIN_BEFORE', { m })}</option>`).join('')}</select>
+    <label class="chk"><input type="checkbox" data-pref="outReminder" ${pf.outReminder ? 'checked' : ''}> ${t('PREF_NOOUT')}</label>
+    <label class="chk"><input type="checkbox" data-pref="scheduleChange" ${pf.scheduleChange ? 'checked' : ''}> ${t('PREF_SCHEDULE')}</label>`;
+  $$('[data-pref]').forEach(el => el.onchange = () => api('/api/staff/prefs', { method: 'PUT', body: { [el.dataset.pref]: el.type === 'checkbox' ? el.checked : el.value } }).then(() => toast(t('SAVED'), 'ok')));
+}
+$('#notif-all').onclick = async () => { await api('/api/staff/notifications/read', { method: 'POST', body: { all: true } }); loadDocs(); };
+loadDocs().catch(e => toast(e.message, 'error'));
+
 langButton(() => { if (H) render(); });
 load();

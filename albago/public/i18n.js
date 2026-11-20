@@ -247,6 +247,33 @@
     HOLIDAY_LIST: 'Public holidays', HOLIDAY_LIST_HELP: 'One per line: "YYYY-MM-DD name". Check government announcements for substitute or temporary holidays.', HOL_LOAD: 'Load {y} holidays', HOL_VERIFY: 'Loaded. Check against government announcements before saving.', HOL_BAD: 'Invalid line: {line}',
     X_MESSAGES: 'Messages', X_SENT_AT: 'Sent', X_FROM: 'From', X_RELATED_DATE: 'Related date', X_ATTACH: 'Attachments', X_READ_AT: 'Read', X_ACK_AT: 'Acknowledged', X_ALL_STAFF: 'All staff', X_OWNER: 'Owner', X_STAFF: 'Staff',
   });
+  // ── v3: 내 급여 · 임금명세서 · 근로계약서 · 알림함 ──
+  Object.assign(ko, {
+    N_MESSAGE_NEW: '새 메시지', N_SCHEDULE_T: '근무표가 바뀌었어요', N_SCHEDULE_B: '{date} 근무를 확인해 주세요.', N_SCHEDULE_B_N: '{date} 외 {n}일 근무를 확인해 주세요.',
+    N_SOON_T: '곧 근무 시작', N_SOON_B: '{time} 근무가 {min}분 뒤 시작돼요.', N_NOOUT_T: '퇴근 기록이 없어요', N_NOOUT_B: '{end} 근무가 끝났어요. 퇴근을 눌러 주세요.',
+    N_PAYSLIP_T: '임금명세서가 도착했어요', N_PAYSLIP_B: '{from} ~ {to} 실지급 {net}', N_CONTRACT_T: '근로계약서가 도착했어요', N_CONTRACT_B: '{title} — 확인 후 [받았습니다]를 눌러 주세요.',
+    CALC_HOLIDAY: '주 15시간 이상 개근한 주', ISSUE_SLIPS: '임금명세서 확정·앱 발송', ISSUE_CONFIRM: '{n}명의 임금명세서({from} ~ {to}, 지급일 {date})를 확정해서 알바 앱으로 보낼까요? 같은 기간에 이미 보낸 명세서는 새 명세서로 바뀝니다.', ISSUED_N: '{n}명에게 임금명세서를 보냈습니다.',
+    SLIP_ISSUED: '명세서 발송 {at}', SLIP_VIEWED: '명세서 열람 {at}',
+    CT_SHARE: '알바 앱으로도 보내기 (열람·수령 확인 시각 기록)', CT_SHARE_NOAPP: '이 직원은 앱 계정이 없어 앱으로 보낼 수 없습니다', CT_DELIVERY: '앱 전달', CT_RECEIVED: '수령 확인 {at}', CT_VIEWED: '열람함', CT_SENT: '보냄', CT_SEND_APP: '앱으로 보내기',
+    CONTRACT_SHARED: '알바에게 보낸 근로계약서는 근거 보존을 위해 삭제할 수 없습니다.',
+    MY_PAY: '내 급여', MY_PAYSLIPS: '임금명세서', MY_CONTRACTS: '내 근로계약서', NOTIFS: '알림함', READ_ALL: '모두 읽음', NOTIF_PREFS: '알림 설정',
+    MY_RATE_HOURLY: '시급 {w}', MY_RATE_MONTHLY: '월급 {s} · 통상시급 {r}', PAYDAY_N: '매월 {d}일 지급', ESTIMATE: '예상 금액', CONFIRMED: '확정', VIEW_PAYSLIP: '명세서 보기', ESTIMATE_NOTE: '사장님이 임금명세서를 확정하면 확정 금액으로 바뀝니다.', NEW: '새로 도착',
+    CT_RECEIVE_BTN: '받았습니다', CT_RECEIVE_CONFIRM: '근로계약서를 받았다는 확인 시각이 기록됩니다.',
+    PREF_SOON: '근무 시작 전 알림', MIN_BEFORE: '{m}분 전', PREF_NOOUT: '퇴근 미기록 알림', PREF_SCHEDULE: '근무표 변경 알림',
+  });
+  Object.assign(en, {
+    N_MESSAGE_NEW: 'New message', N_SCHEDULE_T: 'Your schedule changed', N_SCHEDULE_B: 'Please check your shift on {date}.', N_SCHEDULE_B_N: 'Please check your shifts on {date} and {n} more day(s).',
+    N_SOON_T: 'Shift starting soon', N_SOON_B: 'Your {time} shift starts in {min} minutes.', N_NOOUT_T: 'No clock-out recorded', N_NOOUT_B: 'Your shift ended at {end}. Please clock out.',
+    N_PAYSLIP_T: 'Your pay statement is here', N_PAYSLIP_B: '{from} – {to} net pay {net}', N_CONTRACT_T: 'Your labor contract is here', N_CONTRACT_B: '{title} — please review and tap [I received it].',
+    CALC_HOLIDAY: 'weeks with 15+ hours and full attendance', ISSUE_SLIPS: 'Confirm & send pay statements', ISSUE_CONFIRM: 'Confirm pay statements for {n} staff ({from} – {to}, pay date {date}) and send them to the app? Statements already sent for this period will be replaced.', ISSUED_N: 'Pay statements sent to {n} staff.',
+    SLIP_ISSUED: 'Statement sent {at}', SLIP_VIEWED: 'Statement viewed {at}',
+    CT_SHARE: 'Also send to the staff app (records view and receipt times)', CT_SHARE_NOAPP: 'This staff member has no app account', CT_DELIVERY: 'App delivery', CT_RECEIVED: 'Received {at}', CT_VIEWED: 'Viewed', CT_SENT: 'Sent', CT_SEND_APP: 'Send to app',
+    CONTRACT_SHARED: 'Contracts sent to staff cannot be deleted, to preserve the record.',
+    MY_PAY: 'My pay', MY_PAYSLIPS: 'Pay statements', MY_CONTRACTS: 'My labor contracts', NOTIFS: 'Notifications', READ_ALL: 'Mark all read', NOTIF_PREFS: 'Notification settings',
+    MY_RATE_HOURLY: 'Hourly wage {w}', MY_RATE_MONTHLY: 'Monthly salary {s} · hourly rate {r}', PAYDAY_N: 'paid on day {d} each month', ESTIMATE: 'Estimate', CONFIRMED: 'Confirmed', VIEW_PAYSLIP: 'View statement', ESTIMATE_NOTE: 'This becomes the confirmed amount once the owner issues your pay statement.', NEW: 'New',
+    CT_RECEIVE_BTN: 'I received it', CT_RECEIVE_CONFIRM: 'The time you confirm receipt of the contract will be recorded.',
+    PREF_SOON: 'Before-shift reminder', MIN_BEFORE: '{m} min before', PREF_NOOUT: 'Missing clock-out reminder', PREF_SCHEDULE: 'Schedule change alerts',
+  });
   const DICT = { ko, en };
   function t(lang, key, params) {
     let s = (DICT[lang] && DICT[lang][key]) ?? ko[key] ?? key;

@@ -265,11 +265,12 @@ async function renderPayroll() {
   if (!PF) { const ym = O.today.slice(0, 7); PF = { mode: 'month', month: ym, week: weekStartOf(O.today), from: ym + '-01', to: monthEnd(ym) }; }
   if (PF.mode === 'month') { PF.from = PF.month + '-01'; PF.to = monthEnd(PF.month); }
   if (PF.mode === 'week') { PF.from = weekStartOf(PF.week); PF.to = addDays(PF.from, 6); }
-  const data = await api(`/api/owner/payroll?from=${PF.from}&to=${PF.to}`);
+  const [data, slips] = await Promise.all([api(`/api/owner/payroll?from=${PF.from}&to=${PF.to}`), api(`/api/owner/payslips?from=${PF.from}&to=${PF.to}`)]);
+  const slipOf = id => slips.items.find(x => x.staffId === id);
   if (!PF.payDate) { const [y, m] = PF.to.split('-').map(Number); PF.payDate = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-${String(Math.min(O.store.settings.payDay || 10, 28)).padStart(2, '0')}`; }
   const sum = k => data.list.reduce((a, p) => a + p[k], 0);
   const monthly = data.list[0] ? data.list[0].monthly : PF.mode === 'month';
-  panel('payroll').innerHTML = `<div class="spread section"><h2>${t('TAB_PAYROLL')}</h2><div class="row"><button class="btn" id="x-pay">${t('EXCEL_PAYROLL')}</button><button class="btn primary" id="slip-all">${t('PRINT_ALL_SLIPS')}</button></div></div>
+  panel('payroll').innerHTML = `<div class="spread section"><h2>${t('TAB_PAYROLL')}</h2><div class="row"><button class="btn" id="x-pay">${t('EXCEL_PAYROLL')}</button><button class="btn" id="slip-issue">${t('ISSUE_SLIPS')}</button><button class="btn primary" id="slip-all">${t('PRINT_ALL_SLIPS')}</button></div></div>
   <div class="card section"><div class="grid g4" style="align-items:end">
     <label class="f"><span>${t('PAY_UNIT')}</span><select id="pf-mode"><option value="month">${t('PAY_MONTH')}</option><option value="week">${t('PAY_WEEK')}</option><option value="range">${t('PAY_RANGE')}</option></select></label>
     <label class="f" id="l-month"><span>${t('MONTH')}</span><input type="month" id="pf-month" value="${PF.month}"></label><label class="f" id="l-week"><span>${t('WEEK_PICK')}</span><input type="date" id="pf-week" value="${PF.week}"></label>
@@ -278,7 +279,7 @@ async function renderPayroll() {
     <p class="muted" style="margin-top:8px">${PF.from} ~ ${PF.to} · ${t(O.store.settings.fivePlus ? 'FIVE_ON' : 'FIVE_OFF')} (${rateLine()}) · ${t('HOLIDAY_RULE_SHORT')}${monthly ? '' : ' · ' + t('INS_MONTHLY_ONLY')}</p></div>
   <div class="kpis"><div class="card stat"><span>${t('WORK_HOURS')}</span><strong>${hours(sum('workedMin'))}</strong></div><div class="card stat"><span>${t('GROSS')}</span><strong>${won(sum('gross'))}</strong></div><div class="card stat"><span>${t('NET_TOTAL')}</span><strong>${won(sum('net'))}</strong></div><div class="card stat"><span>${t('TOTAL_COST')}</span><strong>${won(sum('totalCost'))}</strong></div></div>
   <div class="table-wrap"><table><thead><tr><th>${t('NAME')}</th><th class="num">${t('WAGE')}</th><th class="num">${t('WORK_HOURS')}</th><th class="num">${t('BASE_PAY')}</th><th class="num">${t('HOLIDAY_PAY')}</th><th class="num">${t('EXTRA_PAY')}</th><th class="num">${t('GROSS')}</th><th class="num">${t('DEDUCTIONS')}</th><th class="num">${t('NET')}</th><th class="num">${t('EMPLOYER_INS')}</th><th></th></tr></thead><tbody>
-  ${data.list.map((p, i) => `<tr><td><b>${esc(p.name)}</b>${p.payType === 'monthly' ? ` <span class="pill">${t('PT_MONTHLY')}</span>` : ''}${p.warnings.map(w => `<br><span class="pill out">${esc(t(w.code, { ...w, wage: won(w.wage), min: won(w.min) }))}</span>`).join('')}</td><td class="num">${won(p.wage)}</td><td class="num">${hours(p.workedMin)}</td><td class="num">${won(p.base)}</td><td class="num">${won(p.holidayPay)}${p.publicHolidayPay ? `<br><small class="muted">+${t('PAID_HOLIDAY')} ${won(p.publicHolidayPay)}</small>` : ''}</td><td class="num">${won(p.overtimePay + p.nightPay + p.holidayWorkPay + p.excessPay)}</td><td class="num">${won(p.gross)}</td><td class="num">${won(p.deductionTotal)}</td><td class="num"><b>${won(p.net)}</b></td><td class="num">${won(p.employerCost)}</td>
+  ${data.list.map((p, i) => `<tr><td><b>${esc(p.name)}</b>${p.payType === 'monthly' ? ` <span class="pill">${t('PT_MONTHLY')}</span>` : ''}${(sl => sl ? `<br><span class="pill ${sl.viewedAt ? 'in' : 'warn'}">${t(sl.viewedAt ? 'SLIP_VIEWED' : 'SLIP_ISSUED', { at: kstDate(sl.viewedAt || sl.issuedAt).slice(5) })}</span>` : '')(slipOf(p.staffId))}${p.warnings.map(w => `<br><span class="pill out">${esc(t(w.code, { ...w, wage: won(w.wage), min: won(w.min) }))}</span>`).join('')}</td><td class="num">${won(p.wage)}</td><td class="num">${hours(p.workedMin)}</td><td class="num">${won(p.base)}</td><td class="num">${won(p.holidayPay)}${p.publicHolidayPay ? `<br><small class="muted">+${t('PAID_HOLIDAY')} ${won(p.publicHolidayPay)}</small>` : ''}</td><td class="num">${won(p.overtimePay + p.nightPay + p.holidayWorkPay + p.excessPay)}</td><td class="num">${won(p.gross)}</td><td class="num">${won(p.deductionTotal)}</td><td class="num"><b>${won(p.net)}</b></td><td class="num">${won(p.employerCost)}</td>
     <td><div class="row" style="flex-wrap:nowrap"><button class="btn small" data-det="${i}">${t('DETAIL')}</button><button class="btn small" data-slip="${i}">${t('PAYSLIP')}</button></div></td></tr>
     <tr data-det-row="${i}" hidden><td colspan="11" style="background:#fafbfd">${payDetail(p)}</td></tr>`).join('') || `<tr><td colspan="11" class="muted">${t('NO_STAFF')}</td></tr>`}</tbody></table></div>
   <div class="infobox">${t('PAY_INFO')}</div>`;
@@ -291,6 +292,11 @@ async function renderPayroll() {
   const foreign = p => (staffById(p.staffId) || {}).nationality === 'FOREIGN';
   $$('[data-slip]').forEach(b => b.onclick = () => { const p = data.list[b.dataset.slip]; printDoc(payslipHTML(p, data.store, PF.payDate, foreign(p))); });
   $('#slip-all').onclick = () => printDoc(data.list.map((p, i) => `<div class="${i ? 'page-break' : ''}">${payslipHTML(p, data.store, PF.payDate, foreign(p))}</div>`).join(''));
+  $('#slip-issue').onclick = async () => {
+    const n = data.list.filter(p => p.gross > 0).length; if (!n) return toast(t('NO_STAFF'), 'error');
+    if (!confirm(t('ISSUE_CONFIRM', { n, from: PF.from, to: PF.to, date: PF.payDate }))) return;
+    try { const r = await api('/api/owner/payslips', { method: 'POST', body: { from: PF.from, to: PF.to, payDate: PF.payDate } }); toast(t('ISSUED_N', { n: r.count }), 'ok'); renderPayroll(); } catch (e) { fail(e); }
+  };
   $('#x-pay').onclick = () => download(`/api/owner/export/payroll.xlsx?from=${PF.from}&to=${PF.to}`);
 }
 function curRates() { const r = O.store.settings.premiums || {}, f = O.store.settings.fivePlus, v = (k, d) => (r[k] === undefined || r[k] === '' ? d : +r[k]); return { overtime: v('overtime', f ? 50 : 0), night: v('night', f ? 50 : 0), holiday: v('holiday', f ? 50 : 0), holidayOver8: v('holidayOver8', f ? 100 : 0), partTimeExcess: v('partTimeExcess', f ? 50 : 0) }; }
@@ -361,16 +367,18 @@ function renderContract() {
       <label class="f"><span>${t('BIRTH')}</span><input name="g_birth" type="date"></label><label class="f"><span>${t('PHONE')}</span><input name="g_phone"></label><label class="f"><span>${t('ADDRESS')}</span><input name="g_address"></label></div></fieldset>
   </form>
   ${!st.ownerName || !st.address ? `<div class="warnbox">${t('CT_NEED_STORE')}</div>` : ''}${!Object.keys(s.pattern || {}).length ? `<div class="warnbox">${t('CT_NEED_PATTERN')}</div>` : ''}
-  <div class="row" style="margin-top:14px"><button class="btn" id="ct-preview">${t('PREVIEW')}</button><button class="btn primary" id="ct-print">${t('SAVE_PRINT')}</button></div></div>
+  <label class="chk" style="margin-top:14px"><input type="checkbox" id="ct-share" ${s.hasLogin ? 'checked' : 'disabled'}> ${t(s.hasLogin ? 'CT_SHARE' : 'CT_SHARE_NOAPP')}</label>
+  <div class="row" style="margin-top:10px"><button class="btn" id="ct-preview">${t('PREVIEW')}</button><button class="btn primary" id="ct-print">${t('SAVE_PRINT')}</button></div></div>
   <div class="card section" id="ct-box" hidden style="overflow:auto"></div>
-  <div class="card section"><h3>${t('CT_LIST')}</h3><div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${t('CREATED')}</th><th>${t('STAFF')}</th><th>${t('CT_TYPE')}</th><th></th></tr></thead><tbody>
-  ${O.contracts.map(c => `<tr><td>${kstDate(c.createdAt)} ${kstTime(c.createdAt)}</td><td>${esc((staffById(c.staffId) || {}).name || '-')}</td><td>${esc(c.title)}</td><td><div class="row"><button class="btn small" data-rp="${c.id}">${t('REPRINT')}</button><button class="btn small danger" data-cd="${c.id}">${t('DELETE')}</button></div></td></tr>`).join('') || `<tr><td colspan="4" class="muted">-</td></tr>`}</tbody></table></div>
+  <div class="card section"><h3>${t('CT_LIST')}</h3><div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${t('CREATED')}</th><th>${t('STAFF')}</th><th>${t('CT_TYPE')}</th><th>${t('CT_DELIVERY')}</th><th></th></tr></thead><tbody>
+  ${O.contracts.map(c => `<tr><td>${kstDate(c.createdAt)} ${kstTime(c.createdAt)}</td><td>${esc((staffById(c.staffId) || {}).name || '-')}</td><td>${esc(c.title)}</td><td>${c.receivedAt ? `<span class="pill in">${t('CT_RECEIVED', { at: kstDate(c.receivedAt) })}</span>` : c.viewedAt ? `<span class="pill warn">${t('CT_VIEWED')}</span>` : c.sharedAt ? `<span class="pill">${t('CT_SENT')}</span>` : `<span class="muted">-</span>`}</td><td><div class="row"><button class="btn small" data-rp="${c.id}">${t('REPRINT')}</button>${c.sharedAt ? '' : `<button class="btn small" data-cs="${c.id}">${t('CT_SEND_APP')}</button><button class="btn small danger" data-cd="${c.id}">${t('DELETE')}</button>`}</div></td></tr>`).join('') || `<tr><td colspan="5" class="muted">-</td></tr>`}</tbody></table></div>
   <p class="muted">${t('CT_LAW')}</p></div>`;
   $('#ct-staff').onchange = e => { ctStaff = e.target.value; ctType = ''; renderContract(); };
   $('#ct-type').onchange = e => { ctType = e.target.value; $('#ct-foreign').hidden = ctType !== 'foreign'; $('#ct-minor').hidden = ctType !== 'minor'; };
   $('#ct-preview').onclick = () => { const b = $('#ct-box'); b.hidden = false; b.innerHTML = contractHTML(ctFields(s)); b.scrollIntoView({ behavior: 'smooth' }); };
-  $('#ct-print').onclick = async () => { const f = ctFields(s); await api('/api/owner/contracts', { method: 'POST', body: { staffId: s.id, type: f.type, title: CONTRACT_TYPES[f.type], fields: f } }); await refresh(); printDoc(contractHTML(f)); renderContract(); };
+  $('#ct-print').onclick = async () => { const f = ctFields(s); await api('/api/owner/contracts', { method: 'POST', body: { staffId: s.id, type: f.type, title: CONTRACT_TYPES[f.type], fields: f, share: $('#ct-share').checked } }); await refresh(); printDoc(contractHTML(f)); renderContract(); };
   $$('[data-rp]').forEach(b => b.onclick = async () => printDoc(contractHTML((await api('/api/owner/contracts/' + b.dataset.rp)).fields)));
+  $$('[data-cs]').forEach(b => b.onclick = async () => { try { await api(`/api/owner/contracts/${b.dataset.cs}/share`, { method: 'POST' }); toast(t('SENT'), 'ok'); await refresh(); renderContract(); } catch (e) { fail(e); } });
   $$('[data-cd]').forEach(b => b.onclick = async () => { if (!confirm(t('DELETE') + '?')) return; await api('/api/owner/contracts/' + b.dataset.cd, { method: 'DELETE' }); await refresh(); renderContract(); });
 }
 function ctFields(s) {

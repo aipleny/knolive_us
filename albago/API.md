@@ -89,3 +89,45 @@ Base URL: `https://albago.kr` (개발: `http://<PC IP>:8080`). JSON 요청/응�
 `GET /api/staff/attachments/:id` → 파일 본문 (Bearer 인증)
 `POST /api/staff/push-token { "token": "ExponentPushToken[...]" }` → 새 메시지가 오면 서버가 Expo 푸시로 알림(제목 "ALBAGO 알바고", 본문 = 메시지 종류·제목, data `{ type: "message", id }`)
 `GET /api/staff/home` 응답에 `"unread": 숫자` 가 추가됩니다.
+
+## v3 — 내 급여 · 임금명세서 · 알림함 · 근로계약서 (추가)
+
+### 내 급여
+`GET /api/staff/pay?month=YYYY-MM` (생략 시 이번 달). 금액은 원, 문구는 X-Lang 언어.
+```json
+{ "month": "2026-11", "from": "2026-11-01", "to": "2026-11-30", "payDay": 10,
+  "payType": "hourly | monthly", "hourlyWage": 11000, "monthlySalary": 0, "ordinaryRate": 11000,
+  "workedMin": 6240, "days": 13,
+  "items": [ { "key": "base", "label": "기본급", "amount": 1144000, "calc": "104시간 × 11,000원" } ],
+  "gross": 1320000,
+  "deductions": [ { "key": "pension", "label": "국민연금", "amount": 62700 } ],
+  "deductionTotal": 128260, "net": 1191740,
+  "estimate": true, "payslipId": null }
+```
+`estimate: true` 이면 아직 사장님이 확정하지 않은 예상 금액입니다. 확정된 임금명세서가 있으면 `estimate: false`, `payslipId` 가 들어오고 금액은 명세서 기준입니다.
+`months` 조회: `GET /api/staff/pay/months` → `{ "months": ["2026-11", "2026-10", ...] }` (입사월~이번 달, 최근 순, 최대 24개)
+
+### 임금명세서
+`GET /api/staff/payslips` → `{ "items": [ { "id", "from", "to", "payDate", "gross", "net", "issuedAt", "viewedAt" } ] }` (최근 순)
+`GET /api/staff/payslips/:id/html` → 인쇄용 완성 HTML 문서(text/html). WebView 로 보여 주고, PDF 저장은 같은 HTML 로 expo-print 사용. 열면 열람 시각이 기록됩니다.
+
+### 근로계약서
+`GET /api/staff/contracts` → `{ "items": [ { "id", "title", "createdAt", "sharedAt", "receivedAt" } ] }` (사장님이 앱으로 보낸 것만)
+`GET /api/staff/contracts/:id/html` → 완성 HTML 문서
+`POST /api/staff/contracts/:id/receive` → `{ ok, receivedAt }` ("받았습니다" = 근로계약서 교부 확인)
+
+### 알림함
+`GET /api/staff/notifications` → `{ "items": [ { "id", "kind", "title", "body", "data": { "id": "..." }, "createdAt", "readAt" } ], "unread": 3 }` (최근 100개)
+kind: `message`(사장님 메시지·공지) · `payslip`(임금명세서 도착) · `contract`(근로계약서 도착) · `schedule`(근무표 변경) · `shift_soon`(근무 시작 전 알림) · `no_out`(퇴근 미기록)
+`POST /api/staff/notifications/read` `{ "ids": ["..."] }` 또는 `{ "all": true }` → `{ ok }`
+푸시 data: `{ "type": kind, "id": 관련 id, "notificationId": "..." }`. 탭하면 kind 에 맞는 화면(message→소통, payslip→급여, contract→계약서, schedule·shift_soon·no_out→홈)으로 이동.
+
+### 알림 설정
+`GET /api/staff/prefs` / `PUT /api/staff/prefs`
+```json
+{ "shiftReminder": true, "shiftReminderMin": 30, "outReminder": true, "scheduleChange": true }
+```
+`shiftReminderMin`: 10~120. 근무 시작 N분 전 알림, 퇴근 미기록 알림(근무 종료 30분 후), 근무표 변경 알림을 서버가 푸시로 보냅니다.
+
+### 홈 응답 추가 필드
+`GET /api/staff/home` 에 `"notifUnread": 숫자`, `me.payType`, `me.hourlyWage`, `me.monthlySalary` 추가.

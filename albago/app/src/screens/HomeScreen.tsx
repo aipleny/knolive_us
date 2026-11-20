@@ -4,12 +4,12 @@ import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollVi
 import { api, ApiError, type HomeData, type PunchAction, type Shift } from '../api';
 import { dayLabel, duration, hhmm, money } from '../i18n';
 import { currentCoords } from '../location';
+import type { ScreenProps } from '../nav';
+import { rateText } from '../pay';
 import { useSession } from '../session';
 import { Button, C, Card, Row, s, toast } from '../ui';
 
-type Nav = { navigate(name: 'Settings' | 'Messages'): void; setOptions(o: object): void };
-
-export default function HomeScreen({ navigation }: { navigation: Nav }) {
+export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   const { t, lang, syncGeo } = useSession();
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,16 +34,24 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
     return () => sub.remove();
   }, [load]);
 
+  const notifUnread = data?.notifUnread ?? 0;
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t('appName'),
       headerRight: () => (
-        <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={12}>
-          <Text style={{ color: C.brand, fontSize: 16, fontWeight: '600' }}>{t('settings')}</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+          <Pressable onPress={() => navigation.navigate('Notifications')} hitSlop={10}
+            accessibilityRole="button" accessibilityLabel={t('notifications')}>
+            <Text style={{ fontSize: 22 }}>🔔</Text>
+            {notifUnread ? <Badge n={notifUnread} style={{ position: 'absolute', top: -6, right: -10 }} /> : null}
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={10}>
+            <Text style={{ color: C.brand, fontSize: 16, fontWeight: '600' }}>{t('settings')}</Text>
+          </Pressable>
+        </View>
       ),
     });
-  }, [navigation, t]);
+  }, [navigation, t, notifUnread]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -117,24 +125,25 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
         ))}
       </View>
 
-      <Pressable onPress={() => navigation.navigate('Messages')} accessibilityRole="button"
-        style={({ pressed }) => [s.card, { flexDirection: 'row', alignItems: 'center', minHeight: 60, opacity: pressed ? 0.7 : 1 }]}>
-        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: C.text }}>✉  {t('messagesBtn')}</Text>
-        {data.unread ? (
-          <View style={{ minWidth: 26, height: 26, borderRadius: 13, backgroundColor: C.danger, alignItems: 'center',
-            justifyContent: 'center', paddingHorizontal: 7, marginRight: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '800' }}>{data.unread > 99 ? '99+' : data.unread}</Text>
-          </View>
-        ) : null}
-        <Text style={{ color: C.sub, fontSize: 20 }}>›</Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+        <Tile icon="✉" label={t('messagesBtn')} badge={data.unread} onPress={() => navigation.navigate('Messages')} />
+        <Tile icon="💰" label={t('myPay')} onPress={() => navigation.navigate('Pay')} />
+      </View>
 
-      <Card title={t('thisMonth')}>
+      <Pressable onPress={() => navigation.navigate('Pay')} accessibilityRole="button"
+        style={({ pressed }) => [s.card, { opacity: pressed ? 0.7 : 1 }]}>
+        <Text style={s.cardTitle}>{t('thisMonth')}</Text>
+        {data.me.payType ? (
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 4 }}>
+            {rateText(t, data.me.payType, data.me.hourlyWage, data.me.monthlySalary)}
+          </Text>
+        ) : null}
         <Row left={t('worked')} right={duration(month.workedMin, t)} />
         <Row left={t('gross')} right={money(month.gross, t)} />
         <Row left={t('holidayPay')} right={money(month.holidayPay, t)} />
         <Row left={t('net')} right={money(month.net, t)} strong />
-      </Card>
+        <Text style={[s.link, { textAlign: 'right', paddingHorizontal: 0, paddingBottom: 0 }]}>{t('viewMyPay')} ›</Text>
+      </Pressable>
 
       <Card title={t('next14')}>
         {data.shifts.slice(0, 14).map((d) => (
@@ -162,6 +171,26 @@ export default function HomeScreen({ navigation }: { navigation: Nav }) {
         ))}
       </Card>
     </ScrollView>
+  );
+}
+
+function Badge({ n, style }: { n: number; style?: object }) {
+  return (
+    <View style={[{ minWidth: 22, height: 22, borderRadius: 11, backgroundColor: C.danger, alignItems: 'center',
+      justifyContent: 'center', paddingHorizontal: 6 }, style]}>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{n > 99 ? '99+' : n}</Text>
+    </View>
+  );
+}
+
+function Tile({ icon, label, badge, onPress }: { icon: string; label: string; badge?: number; onPress(): void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button"
+      style={({ pressed }) => [s.card, { flex: 1, marginBottom: 0, minHeight: 84, justifyContent: 'center', opacity: pressed ? 0.7 : 1 }]}>
+      <Text style={{ fontSize: 24 }}>{icon}</Text>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginTop: 4 }}>{label}</Text>
+      {badge ? <Badge n={badge} style={{ position: 'absolute', top: 10, right: 10 }} /> : null}
+    </Pressable>
   );
 }
 

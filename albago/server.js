@@ -68,7 +68,13 @@ CREATE INDEX IF NOT EXISTS messages_store ON messages(store_id, created_at);
 CREATE TABLE IF NOT EXISTS msg_receipts(message_id TEXT NOT NULL, staff_id TEXT NOT NULL, read_at TEXT, ack_at TEXT, ack_ip TEXT, PRIMARY KEY(message_id, staff_id));
 CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY, message_id TEXT NOT NULL, store_id TEXT NOT NULL, name TEXT, type TEXT, size INTEGER, sha256 TEXT, data BLOB);
 CREATE TABLE IF NOT EXISTS push_tokens(token TEXT PRIMARY KEY, staff_id TEXT NOT NULL, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS payslips(id TEXT PRIMARY KEY, store_id TEXT NOT NULL, staff_id TEXT NOT NULL, period_from TEXT NOT NULL, period_to TEXT NOT NULL, pay_date TEXT, data TEXT NOT NULL, gross INTEGER, net INTEGER, issued_at TEXT NOT NULL, viewed_at TEXT, superseded_at TEXT);
+CREATE INDEX IF NOT EXISTS payslips_staff ON payslips(staff_id, period_from);
+CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY, store_id TEXT NOT NULL, staff_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT, body TEXT, data TEXT, created_at TEXT NOT NULL, read_at TEXT);
+CREATE INDEX IF NOT EXISTS notifications_staff ON notifications(staff_id, created_at);
+CREATE TABLE IF NOT EXISTS notif_sent(key TEXT PRIMARY KEY, at TEXT);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT, at TEXT, who TEXT, what TEXT);`);
+for (const col of ['shared_at', 'received_at', 'viewed_at']) { try { db.exec(`ALTER TABLE contracts ADD COLUMN ${col} TEXT`); } catch {} }
 const q = (sql, ...a) => db.prepare(sql).all(...a);
 const q1 = (sql, ...a) => db.prepare(sql).get(...a);
 const run = (sql, ...a) => db.prepare(sql).run(...a);
@@ -256,7 +262,7 @@ function sweep() {
     }
   }
 }
-setInterval(sweep, 60000).unref();
+setInterval(() => { sweep(); try { reminders(); } catch (e) { console.error('reminders', e.message); } }, 60000).unref();
 
 // ── 급여 ──
 function payFor(store, staff, from, to) {
@@ -428,11 +434,11 @@ function staffHome(s) {
   const shiftOf = shiftOfFn(me.id, C.addDays(today, -1), C.addDays(today, 31));
   return {
     store: { name: store.name, lat: store.lat, lng: store.lng, radius: set.geo.radius, autoGeo: set.geo.auto, requireLocation: set.geo.requireLocation },
-    me: { id: me.id, name: me.name, lang: me.lang, hasPin: me.hasPin }, ...statusOf(me.id),
+    me: { id: me.id, name: me.name, lang: me.lang, hasPin: me.hasPin, payType: me.payType === 'monthly' ? 'monthly' : 'hourly', hourlyWage: +me.hourlyWage || 0, monthlySalary: +me.monthlySalary || 0 }, ...statusOf(me.id),
     today: { date: today, shift: shiftOf(today) },
     shifts: C.datesBetween(today, C.addDays(today, 13)).map(d => ({ date: d, shift: shiftOf(d) })),
     month: { from, to, workedMin: pay.workedMin, base: pay.base, holidayPay: pay.holidayPay, overtimePay: pay.overtimePay, nightPay: pay.nightPay, gross: pay.gross, deductionTotal: pay.deductionTotal, net: pay.net },
-    unread: unreadForStaff(me),
+    unread: unreadForStaff(me), notifUnread: q1('SELECT count(*) n FROM notifications WHERE staff_id=? AND read_at IS NULL', me.id).n,
     records: q('SELECT * FROM records WHERE staff_id=? AND date BETWEEN ? AND ? ORDER BY in_at DESC', me.id, from, to).map(parseRec).map(r => ({ date: r.date, in: r.in, out: r.out, breaks: r.breaks })),
   };
 }
@@ -522,7 +528,7 @@ route('GET', '/api/owner/bootstrap', 'owner', (c) => {
     today: C.todayKst(), clientIp: c.ip, kiosk: !!kioskOf(c.req), user: { loginId: c.s.user.login_id, email: maskEmail(c.s.user.email), lang: c.s.user.lang },
     store: { name: store.name, bizNo: store.biz_no, ownerName: store.owner_name, address: store.address, phone: store.phone, industry: store.industry, lat: store.lat, lng: store.lng, settings },
     staff: q('SELECT * FROM staff WHERE store_id=? ORDER BY status, name', store.id).map(staffObj).map(publicStaff),
-    contracts: q('SELECT id,staff_id,type,title,created_at FROM contracts WHERE store_id=? ORDER BY created_at DESC', store.id).map(r => ({ id: r.id, staffId: r.staff_id, type: r.type, title: r.title, createdAt: r.created_at })),
+    contracts: q('SELECT id,staff_id,type,title,created_at,shared_at,received_at,viewed_at FROM contracts WHERE store_id=? ORDER BY created_at DESC', store.id).map(r => ({ id: r.id, staffId: r.staff_id, type: r.type, title: r.title, createdAt: r.created_at, sharedAt: r.shared_at, receivedAt: r.received_at, viewedAt: r.viewed_at })),
   };
 });
 route('PUT', '/api/owner/store', 'owner', async (c) => {
@@ -609,9 +615,10 @@ route('GET', '/api/owner/shifts', 'owner', (c) => {
 });
 route('PUT', '/api/owner/shifts', 'owner', (c) => {
   const b = c.body, s = getStaff(c.s.storeId, b.staffId); if (!s || !isDate(b.date)) fail(400, 'BAD_REQUEST');
-  if (b.off) { run('DELETE FROM shifts WHERE staff_id=? AND date=?', s.id, b.date); return { ok: true }; }
+  if (b.off) { if (run('DELETE FROM shifts WHERE staff_id=? AND date=?', s.id, b.date).changes) notifySchedule(c.s.storeId, s.id, [b.date]); return { ok: true }; }
   if (!isTime(b.start) || !isTime(b.end)) fail(400, 'TIME_INVALID');
   run('INSERT INTO shifts(id,store_id,staff_id,date,start,end,breaks) VALUES(?,?,?,?,?,?,?) ON CONFLICT(staff_id,date) DO UPDATE SET start=excluded.start, end=excluded.end, breaks=excluded.breaks', uid(), c.s.storeId, s.id, b.date, b.start, b.end, JSON.stringify(cleanBreaks(b.breaks)));
+  notifySchedule(c.s.storeId, s.id, [b.date]);
   return { ok: true };
 });
 // 일괄 등록·수정·삭제: mode = set(지정 시간) | pattern(직원별 기본 근무) | delete
@@ -621,21 +628,23 @@ route('POST', '/api/owner/shifts/bulk', 'owner', (c) => {
   const wd = new Set((b.weekdays || []).map(Number));
   const dates = (b.dates && b.dates.length ? b.dates.filter(isDate) : C.datesBetween(b.from, b.to)).filter(d => !wd.size || wd.has(C.dow(d)));
   if (b.mode === 'set' && (!isTime(b.start) || !isTime(b.end))) fail(400, 'TIME_INVALID');
-  let n = 0;
+  let n = 0; const changed = {};
   tx(() => {
     for (const id of ids) {
       const s = getStaff(c.s.storeId, id); if (!s) continue;
+      const mark = d => (changed[s.id] = changed[s.id] || []).push(d);
       for (const d of dates) {
         if (s.startDate && d < s.startDate || s.endDate && d > s.endDate) continue;
-        if (b.mode === 'delete') { n += Number(run('DELETE FROM shifts WHERE staff_id=? AND date=?', s.id, d).changes); continue; }
+        if (b.mode === 'delete') { const k = Number(run('DELETE FROM shifts WHERE staff_id=? AND date=?', s.id, d).changes); if (k) mark(d); n += k; continue; }
         const sh = b.mode === 'pattern' ? (s.pattern || {})[C.dow(d)] : { start: b.start, end: b.end, breaks: cleanBreaks(b.breaks) };
         if (!sh) continue;
         if (!b.overwrite && q1('SELECT 1 FROM shifts WHERE staff_id=? AND date=?', s.id, d)) continue;
         run('INSERT INTO shifts(id,store_id,staff_id,date,start,end,breaks) VALUES(?,?,?,?,?,?,?) ON CONFLICT(staff_id,date) DO UPDATE SET start=excluded.start, end=excluded.end, breaks=excluded.breaks', uid(), c.s.storeId, s.id, d, sh.start, sh.end, JSON.stringify(sh.breaks || []));
-        n++;
+        n++; mark(d);
       }
     }
   });
+  for (const [sid, ds] of Object.entries(changed)) notifySchedule(c.s.storeId, sid, ds);
   audit(c.s.storeId, c.s.user.login_id, `SHIFT_BULK ${b.mode} ${n}`);
   return { ok: true, count: n };
 });
@@ -760,10 +769,12 @@ route('GET', '/api/owner/export/:kind', 'owner', (c) => {
 route('POST', '/api/owner/contracts', 'owner', (c) => {
   const s = getStaff(c.s.storeId, c.body.staffId); if (!s) fail(400, 'BAD_REQUEST');
   const id = uid(); run('INSERT INTO contracts(id,store_id,staff_id,type,title,fields,created_at) VALUES(?,?,?,?,?,?,?)', id, c.s.storeId, s.id, clean(c.body.type, 30), clean(c.body.title, 120), JSON.stringify(c.body.fields || {}), nowIso());
-  audit(c.s.storeId, c.s.user.login_id, 'CONTRACT ' + s.name); return { ok: true, id };
+  audit(c.s.storeId, c.s.user.login_id, 'CONTRACT ' + s.name);
+  if (c.body.share) shareContract(c.s.storeId, id);
+  return { ok: true, id };
 });
 route('GET', '/api/owner/contracts/:id', 'owner', (c) => { const r = q1('SELECT * FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); if (!r) fail(404, 'NOT_FOUND'); return { ...r, fields: JSON.parse(r.fields) }; });
-route('DELETE', '/api/owner/contracts/:id', 'owner', (c) => { run('DELETE FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); return { ok: true }; });
+route('DELETE', '/api/owner/contracts/:id', 'owner', (c) => { const r = q1('SELECT shared_at FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); if (r && r.shared_at) fail(409, 'CONTRACT_SHARED'); run('DELETE FROM contracts WHERE id=? AND store_id=?', c.p.id, c.s.storeId); return { ok: true }; });
 
 // ════════ 소통 채널 (기록 보존: 삭제·수정 불가, 매장별 해시 체인) ════════
 const OWNER_KINDS = ['notice', 'instruction', 'general', 'warning', 'discipline', 'dismissal'];
@@ -878,7 +889,7 @@ route('POST', '/api/owner/messages', 'owner', async (c) => {
   const row = createMessage(c.s.storeId, { staffId: notice ? null : st.id, sender: 'owner', senderName: owner.owner_name || c.s.user.login_id, kind: notice ? 'notice' : b.kind, title: b.title, body: b.body, date: b.date, requiresAck: b.requiresAck ?? ACK_DEFAULT.has(b.kind) }, b.attachments, c.ip);
   audit(c.s.storeId, c.s.user.login_id, `MSG ${row.kind} ${st ? st.name : 'ALL'}`);
   const targets = notice ? q('SELECT id, lang FROM staff WHERE store_id=? AND status=?', c.s.storeId, 'active') : [{ id: st.id, lang: st.lang }];
-  for (const lang of ['ko', 'en']) { const ids = targets.filter(x => (x.lang || 'ko') === lang).map(x => x.id); if (ids.length) pushTo(ids, 'ALBAGO 알바고', `[${t(lang, 'MK_' + row.kind)}] ${row.title || row.body.slice(0, 40)}`, { type: 'message', id: row.id }); }
+  notify(c.s.storeId, targets.map(x => x.id), 'message', lang => ({ title: `[${t(lang, 'MK_' + row.kind)}] ${row.title || t(lang, 'N_MESSAGE_NEW')}`, body: row.body.slice(0, 80) }), { id: row.id });
   return { ok: true, id: row.id };
 }, { maxBody: 22e6 });
 route('GET', '/api/owner/attachments/:id', 'owner', (c) => sendAttachment(c, q1('SELECT * FROM attachments WHERE id=? AND store_id=?', c.p.id, c.s.storeId)));
@@ -892,6 +903,180 @@ route('GET', '/api/owner/workforce', 'owner', (c) => {
   const counts = {};
   for (const r of q('SELECT date, count(DISTINCT staff_id) n FROM records WHERE store_id=? AND date BETWEEN ? AND ? GROUP BY date', c.s.storeId, from, to)) counts[r.date] = r.n;
   return { from, to, extra: Math.max(0, parseInt(c.query.get('extra')) || 0), ...C.workforce(counts, Math.max(0, parseInt(c.query.get('extra')) || 0)) };
+});
+
+// ════════ v3: 알림함 · 내 급여 · 임금명세서 · 근로계약서 전달 ════════
+const PREF_DEFAULT = { shiftReminder: true, shiftReminderMin: 30, outReminder: true, scheduleChange: true };
+const prefsOf = st => ({ ...PREF_DEFAULT, ...((st && st.prefs) || {}) });
+const fmtWon = (lang, n) => lang === 'en' ? '₩' + Math.round(n || 0).toLocaleString('en-US') : Math.round(n || 0).toLocaleString('ko-KR') + '원';
+const hrsText = (lang, m) => { m = Math.round(m || 0); return t(lang, m % 60 ? 'HOURS' : 'HOURS_H', { h: Math.floor(m / 60), m: m % 60 }); };
+const mdText = (lang, d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}(${t(lang, 'DOWS').split(',')[C.dow(d)]})`;
+// 알림함에 저장하고 푸시. text(lang) → { title, body }
+function notify(storeId, staffIds, kind, text, data = {}) {
+  for (const sid of staffIds) {
+    const st = q1('SELECT id, lang, status FROM staff WHERE id=? AND store_id=?', sid, storeId);
+    if (!st || st.status !== 'active') continue;
+    const { title, body } = text(st.lang || 'ko'), id = uid();
+    run('INSERT INTO notifications(id,store_id,staff_id,kind,title,body,data,created_at) VALUES(?,?,?,?,?,?,?,?)', id, storeId, sid, kind, title, body, JSON.stringify(data), nowIso());
+    pushTo([sid], title, body, { type: kind, ...data, notificationId: id });
+  }
+  run('DELETE FROM notifications WHERE created_at < ?', new Date(Date.now() - 180 * 86400000).toISOString());
+}
+function notifySchedule(storeId, staffId, dates) {
+  const today = C.todayKst(), soon = [...new Set(dates)].filter(d => d >= today && d <= C.addDays(today, 14)).sort();
+  if (!soon.length) return;
+  const st = getStaff(storeId, staffId); if (!st || !prefsOf(st).scheduleChange) return;
+  notify(storeId, [staffId], 'schedule', lang => ({ title: t(lang, 'N_SCHEDULE_T'), body: t(lang, soon.length > 1 ? 'N_SCHEDULE_B_N' : 'N_SCHEDULE_B', { date: mdText(lang, soon[0]), n: soon.length - 1 }) }), { date: soon[0] });
+}
+const sentOnce = key => Number(run('INSERT OR IGNORE INTO notif_sent(key, at) VALUES(?,?)', key, nowIso()).changes) > 0;
+// 근무 시작 전 알림, 퇴근 미기록 알림 (1분마다)
+function reminders(now = Date.now()) {
+  const today = C.todayKst(now), yday = C.addDays(today, -1);
+  for (const r of q("SELECT sh.*, st.data sdata, st.status FROM shifts sh JOIN staff st ON st.id=sh.staff_id WHERE sh.date IN (?, ?) AND st.status='active'", today, yday)) {
+    const pref = prefsOf(JSON.parse(r.sdata || '{}')), sp = C.shiftSpan(r.date, parseShift(r)), key = r.staff_id + ':' + r.date;
+    const lead = Math.min(120, Math.max(10, +pref.shiftReminderMin || 30)) * 60000;
+    if (pref.shiftReminder && r.date === today && now >= sp.s - lead && now < sp.s && !openRecord(r.staff_id) && sentOnce('soon:' + key))
+      notify(r.store_id, [r.staff_id], 'shift_soon', lang => ({ title: t(lang, 'N_SOON_T'), body: t(lang, 'N_SOON_B', { time: r.start, min: Math.round((sp.s - now) / 60000) }) }), { date: r.date });
+    if (pref.outReminder && now >= sp.e + 30 * 60000 && now < sp.e + 3 * 3600000 && q1('SELECT 1 FROM records WHERE staff_id=? AND date=? AND out_at IS NULL', r.staff_id, r.date) && sentOnce('noout:' + key))
+      notify(r.store_id, [r.staff_id], 'no_out', lang => ({ title: t(lang, 'N_NOOUT_T'), body: t(lang, 'N_NOOUT_B', { end: r.end }) }), { date: r.date });
+  }
+  run('DELETE FROM notif_sent WHERE at < ?', new Date(now - 7 * 86400000).toISOString());
+}
+route('GET', '/api/staff/notifications', 'staff', (c) => {
+  const items = q('SELECT * FROM notifications WHERE staff_id=? ORDER BY created_at DESC LIMIT 100', c.s.staff.id).map(r => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, data: JSON.parse(r.data || '{}'), createdAt: r.created_at, readAt: r.read_at }));
+  return { items, unread: items.filter(i => !i.readAt).length };
+});
+route('POST', '/api/staff/notifications/read', 'staff', (c) => {
+  if (c.body.all) run('UPDATE notifications SET read_at=? WHERE staff_id=? AND read_at IS NULL', nowIso(), c.s.staff.id);
+  else for (const id of (Array.isArray(c.body.ids) ? c.body.ids : []).slice(0, 200)) run('UPDATE notifications SET read_at=COALESCE(read_at, ?) WHERE id=? AND staff_id=?', nowIso(), String(id), c.s.staff.id);
+  return { ok: true };
+});
+route('GET', '/api/staff/prefs', 'staff', (c) => prefsOf(c.s.staff));
+route('PUT', '/api/staff/prefs', 'staff', (c) => {
+  const p = prefsOf(c.s.staff), b = c.body;
+  for (const k of ['shiftReminder', 'outReminder', 'scheduleChange']) if (k in b) p[k] = !!b[k];
+  if ('shiftReminderMin' in b) p.shiftReminderMin = Math.min(120, Math.max(10, parseInt(b.shiftReminderMin) || 30));
+  const row = q1('SELECT data FROM staff WHERE id=?', c.s.staff.id), d = JSON.parse(row.data || '{}'); d.prefs = p;
+  run('UPDATE staff SET data=? WHERE id=?', JSON.stringify(d), c.s.staff.id);
+  return p;
+});
+
+// 내 급여 (항목별)
+function payItems(p, lang) {
+  const R = p.rates || {}, w = fmtWon(lang, p.wage), items = [];
+  const add = (key, label, amount, calc = '') => { if (amount) items.push({ key, label: t(lang, label), amount: Math.round(amount), calc }); };
+  if (p.payType === 'monthly') add('base', 'BASE_PAY', p.base, t(lang, 'BASE_MONTHLY', { s: fmtWon(lang, p.monthlySalary), h: p.stdHours, r: w }));
+  else add('base', 'BASE_PAY', p.base, `${hrsText(lang, p.workedMin)} × ${w}`);
+  add('holidayPay', 'HOLIDAY_PAY', p.holidayPay, t(lang, 'CALC_HOLIDAY'));
+  add('overtimePay', 'OT_PAY', p.overtimePay, `${hrsText(lang, p.overtimeMin)} × ${w} × ${R.overtime}%`);
+  add('nightPay', 'NIGHT_PAY', p.nightPay, `${hrsText(lang, p.nightMin)} × ${w} × ${R.night}%`);
+  add('holidayWorkPay', 'HOLIDAY_WORK_PAY', p.holidayWorkPay, `${hrsText(lang, p.holidayMin)} × ${R.holiday}% + ${hrsText(lang, p.holidayOver8Min)} × ${R.holidayOver8}%`);
+  add('excessPay', 'EXCESS_PAY', p.excessPay, `${hrsText(lang, p.excessMin)} × ${w} × ${R.partTimeExcess}%`);
+  add('publicHolidayPay', 'PAID_HOLIDAY', p.publicHolidayPay, (p.paidHolidays || []).map(h => mdText(lang, h.date)).join(', '));
+  add('allowance', 'ALLOWANCE', p.allowance);
+  return items;
+}
+const activePayslip = (staffId, from, to) => q1('SELECT * FROM payslips WHERE staff_id=? AND period_from=? AND period_to=? AND superseded_at IS NULL ORDER BY issued_at DESC LIMIT 1', staffId, from, to);
+route('GET', '/api/staff/pay/months', 'staff', (c) => {
+  const me = c.s.staff, cur = C.todayKst().slice(0, 7), start = (me.startDate || me.createdAt || cur).slice(0, 7), months = [];
+  for (let m = cur; m >= start && months.length < 24; m = C.addDays(m + '-01', -1).slice(0, 7)) months.push(m);
+  return { months };
+});
+route('GET', '/api/staff/pay', 'staff', (c) => {
+  const me = c.s.staff, month = /^\d{4}-\d{2}$/.test(c.query.get('month') || '') ? c.query.get('month') : C.todayKst().slice(0, 7);
+  if (month > C.todayKst().slice(0, 7)) fail(400, 'BAD_RANGE');
+  const from = month + '-01', to = C.monthEnd(month), store = q1('SELECT * FROM stores WHERE id=?', me.storeId);
+  const ps = activePayslip(me.id, from, to);
+  const p = ps ? JSON.parse(ps.data) : payFor(store, me, from, to);
+  return {
+    month, from, to, payDay: storeSettings(store).payDay, payType: p.payType, hourlyWage: +me.hourlyWage || 0, monthlySalary: p.monthlySalary || 0, ordinaryRate: p.wage,
+    workedMin: p.workedMin, days: p.days, items: payItems(p, c.lang), gross: p.gross,
+    deductions: p.deductions.map(d => ({ key: d.key, label: t(c.lang, 'D_' + d.key), amount: d.amount })), deductionTotal: p.deductionTotal, net: p.net,
+    estimate: !ps, payslipId: ps ? ps.id : null,
+  };
+});
+
+// 임금명세서 확정·발송
+route('POST', '/api/owner/payslips', 'owner', (c) => {
+  const b = c.body;
+  if (!isDate(b.from) || !isDate(b.to) || b.from > b.to) fail(400, 'BAD_RANGE');
+  const store = q1('SELECT * FROM stores WHERE id=?', c.s.storeId);
+  const want = Array.isArray(b.staffIds) && b.staffIds.length ? new Set(b.staffIds) : null;
+  const list = payrollAll(c.s.storeId, b.from, b.to).filter(p => (!want || want.has(p.staffId)) && p.gross > 0);
+  const storeInfo = { name: store.name, ownerName: store.owner_name, bizNo: SV.formatBizNo(store.biz_no), address: store.address };
+  const issued = [];
+  tx(() => {
+    for (const p of list) {
+      const st = getStaff(c.s.storeId, p.staffId);
+      run('UPDATE payslips SET superseded_at=? WHERE staff_id=? AND period_from=? AND period_to=? AND superseded_at IS NULL', nowIso(), p.staffId, b.from, b.to);
+      const id = uid(), data = { ...p, store: storeInfo, payDate: isDate(b.payDate) ? b.payDate : null, bilingual: st.nationality === 'FOREIGN' };
+      run('INSERT INTO payslips(id,store_id,staff_id,period_from,period_to,pay_date,data,gross,net,issued_at) VALUES(?,?,?,?,?,?,?,?,?,?)', id, c.s.storeId, p.staffId, b.from, b.to, data.payDate, JSON.stringify(data), p.gross, p.net, nowIso());
+      issued.push({ id, staffId: p.staffId, net: p.net });
+    }
+  });
+  for (const x of issued) notify(c.s.storeId, [x.staffId], 'payslip', lang => ({ title: t(lang, 'N_PAYSLIP_T'), body: t(lang, 'N_PAYSLIP_B', { from: b.from.slice(5), to: b.to.slice(5), net: fmtWon(lang, x.net) }) }), { id: x.id });
+  audit(c.s.storeId, c.s.user.login_id, `PAYSLIP ${b.from}~${b.to} ${issued.length}`);
+  return { ok: true, count: issued.length };
+});
+route('GET', '/api/owner/payslips', 'owner', (c) => {
+  const from = c.query.get('from'), to = c.query.get('to');
+  return { items: q('SELECT p.id, p.staff_id, p.period_from, p.period_to, p.pay_date, p.net, p.issued_at, p.viewed_at, s.name FROM payslips p JOIN staff s ON s.id=p.staff_id WHERE p.store_id=? AND p.superseded_at IS NULL AND (? IS NULL OR (p.period_from=? AND p.period_to=?)) ORDER BY p.issued_at DESC LIMIT 300', c.s.storeId, from || null, from, to)
+    .map(r => ({ id: r.id, staffId: r.staff_id, name: r.name, from: r.period_from, to: r.period_to, payDate: r.pay_date, net: r.net, issuedAt: r.issued_at, viewedAt: r.viewed_at })) };
+});
+route('GET', '/api/staff/payslips', 'staff', (c) => ({ items: q('SELECT * FROM payslips WHERE staff_id=? AND superseded_at IS NULL ORDER BY period_from DESC, issued_at DESC LIMIT 60', c.s.staff.id)
+  .map(r => ({ id: r.id, from: r.period_from, to: r.period_to, payDate: r.pay_date, gross: r.gross, net: r.net, issuedAt: r.issued_at, viewedAt: r.viewed_at })) }));
+
+// 인쇄용 문서(HTML) — 웹과 같은 docs.js 로 그립니다
+// docs.js(웹과 같은 문서 코드)를 서버에서 실행해 완성된 HTML을 만듭니다 — 앱 WebView·PDF 저장에서 자바스크립트 없이 보입니다.
+const vm = require('vm');
+let DOCS = null;
+function docsContext() {
+  const src = fs.readFileSync(path.join(PUBLIC, 'docs.js'), 'utf8'), mtime = fs.statSync(path.join(PUBLIC, 'docs.js')).mtimeMs;
+  if (DOCS && DOCS.mtime === mtime) return DOCS.ctx;
+  const ctx = vm.createContext({
+    $: () => null,
+    esc: v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]),
+    kstTime: iso => iso ? new Date(Date.parse(iso) + C.KST).toISOString().slice(11, 16) : '',
+    dowOf: d => new Date(d + 'T00:00:00Z').getUTCDay(),
+  });
+  vm.runInContext(src + '\n;globalThis.__docs = { payslipHTML, contractHTML };', ctx, { timeout: 1000 });
+  DOCS = { mtime, ctx }; return ctx;
+}
+function docPage(fn, args, title) {
+  const css = fs.readFileSync(path.join(PUBLIC, 'style.css'), 'utf8');
+  const body = docsContext().__docs[fn](...JSON.parse(JSON.stringify(args)));
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title.replace(/[<>&"]/g, '')}</title><style>${css}</style><style>body{background:#fff;margin:0;padding:14px}.doc{max-width:190mm}@media print{body{padding:0}}</style></head><body>${body}</body></html>`;
+}
+function sendHtml(c, html) {
+  c.res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" });
+  c.res.end(html); return null;
+}
+const payslipDoc = r => { const d = JSON.parse(r.data); return docPage('payslipHTML', [d, d.store, d.payDate, d.bilingual], `임금명세서 ${r.period_from}~${r.period_to}`); };
+route('GET', '/api/staff/payslips/:id/html', 'staff', (c) => {
+  const r = q1('SELECT * FROM payslips WHERE id=? AND staff_id=?', c.p.id, c.s.staff.id); if (!r) fail(404, 'NOT_FOUND');
+  run('UPDATE payslips SET viewed_at=COALESCE(viewed_at, ?) WHERE id=?', nowIso(), r.id);
+  return sendHtml(c, payslipDoc(r));
+});
+route('GET', '/api/owner/payslips/:id/html', 'owner', (c) => { const r = q1('SELECT * FROM payslips WHERE id=? AND store_id=?', c.p.id, c.s.storeId); if (!r) fail(404, 'NOT_FOUND'); return sendHtml(c, payslipDoc(r)); });
+
+// 근로계약서 앱 전달·교부 확인
+function shareContract(storeId, id) {
+  const r = q1('SELECT * FROM contracts WHERE id=? AND store_id=?', id, storeId); if (!r) fail(404, 'NOT_FOUND');
+  run('UPDATE contracts SET shared_at=COALESCE(shared_at, ?) WHERE id=?', nowIso(), id);
+  notify(storeId, [r.staff_id], 'contract', lang => ({ title: t(lang, 'N_CONTRACT_T'), body: t(lang, 'N_CONTRACT_B', { title: r.title }) }), { id });
+}
+route('POST', '/api/owner/contracts/:id/share', 'owner', (c) => { shareContract(c.s.storeId, c.p.id); audit(c.s.storeId, c.s.user.login_id, 'CONTRACT_SHARE'); return { ok: true }; });
+route('GET', '/api/staff/contracts', 'staff', (c) => ({ items: q('SELECT id,title,created_at,shared_at,received_at FROM contracts WHERE staff_id=? AND shared_at IS NOT NULL ORDER BY created_at DESC', c.s.staff.id).map(r => ({ id: r.id, title: r.title, createdAt: r.created_at, sharedAt: r.shared_at, receivedAt: r.received_at })) }));
+route('GET', '/api/staff/contracts/:id/html', 'staff', (c) => {
+  const r = q1('SELECT * FROM contracts WHERE id=? AND staff_id=? AND shared_at IS NOT NULL', c.p.id, c.s.staff.id); if (!r) fail(404, 'NOT_FOUND');
+  run('UPDATE contracts SET viewed_at=COALESCE(viewed_at, ?) WHERE id=?', nowIso(), r.id);
+  return sendHtml(c, docPage('contractHTML', [JSON.parse(r.fields)], r.title));
+});
+route('POST', '/api/staff/contracts/:id/receive', 'staff', (c) => {
+  const r = q1('SELECT * FROM contracts WHERE id=? AND staff_id=? AND shared_at IS NOT NULL', c.p.id, c.s.staff.id); if (!r) fail(404, 'NOT_FOUND');
+  run('UPDATE contracts SET received_at=COALESCE(received_at, ?), viewed_at=COALESCE(viewed_at, ?) WHERE id=?', nowIso(), nowIso(), r.id);
+  audit(c.s.storeId, c.s.staff.name, 'CONTRACT_RECEIVED');
+  return { ok: true, receivedAt: q1('SELECT received_at FROM contracts WHERE id=?', r.id).received_at };
 });
 
 // 기록부 기기 등록·감사 기록·비밀번호
@@ -933,4 +1118,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 if (require.main === module) server.listen(PORT, () => console.log(`알바고 실행 중: http://localhost:${PORT}${SV.DEV ? ' (개발 모드: 인증번호가 이 창에 표시됩니다)' : ''}`));
-module.exports = { server, db, sweep };
+module.exports = { server, db, sweep, reminders };

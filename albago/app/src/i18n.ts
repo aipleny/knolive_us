@@ -119,6 +119,46 @@ const ko = {
   openFailed: '파일을 열 수 없어요.',
   photoPermission: '사진 접근 권한이 필요해요.',
   close: '닫기',
+  // pay / documents / notifications (v3)
+  myPay: '내 급여',
+  hourlyRate: '시급 {n}',
+  monthlyRate: '월급 {n}',
+  ordinaryRate: '통상시급 {n}',
+  payDay: '매월 {d}일 지급',
+  estimate: '예상 금액',
+  estimateNote: '아직 확정되지 않은 예상 금액이에요. 확정 금액은 임금명세서로 안내돼요.',
+  viewPayslip: '명세서 보기',
+  payItems: '지급 항목',
+  grossTotal: '지급 합계',
+  deductions: '공제 항목',
+  deductionTotal: '공제 합계',
+  netPay: '실수령액',
+  workedDays: '{d}일 · {h}',
+  payslips: '임금명세서',
+  payslip: '임금명세서',
+  noPayslips: '받은 임금명세서가 없어요.',
+  payDate: '지급일 {d}',
+  newBadge: '새로 도착',
+  viewMyPay: '내 급여 보기',
+  savePdf: 'PDF 저장·공유',
+  contracts: '내 근로계약서',
+  contract: '근로계약서',
+  noContracts: '받은 근로계약서가 없어요.',
+  received: '받았습니다',
+  receivedAt: '수령 확인 {t}',
+  receiveTitle: '근로계약서 수령 확인',
+  receiveMsg: '지금 시각이 근로계약서를 받았다는(교부받았다는) 확인으로 기록됩니다.',
+  notReceived: '수령 확인 전',
+  notifications: '알림함',
+  noNotifications: '알림이 없어요.',
+  readAll: '모두 읽음',
+  notifPrefs: '알림 설정',
+  shiftReminder: '근무 시작 전 알림',
+  shiftReminderMin: '{n}분 전',
+  outReminder: '퇴근 미기록 알림',
+  outReminderHint: '근무 종료 30분 후에도 퇴근 기록이 없으면 알려 드려요.',
+  scheduleChange: '근무표 변경 알림',
+  minutes: '{n}분',
 };
 type Dict = typeof ko;
 
@@ -236,6 +276,45 @@ const en: Dict = {
   openFailed: 'Could not open the file.',
   photoPermission: 'Photo library access is needed.',
   close: 'Close',
+  myPay: 'My pay',
+  hourlyRate: 'Hourly {n}',
+  monthlyRate: 'Monthly {n}',
+  ordinaryRate: 'ordinary hourly rate {n}',
+  payDay: 'Paid on day {d} of each month',
+  estimate: 'Estimate',
+  estimateNote: 'This is an estimate and not yet confirmed. The confirmed amount comes with your pay statement.',
+  viewPayslip: 'View pay statement',
+  payItems: 'Earnings',
+  grossTotal: 'Gross pay',
+  deductions: 'Deductions',
+  deductionTotal: 'Total deductions',
+  netPay: 'Net pay',
+  workedDays: '{d} days · {h}',
+  payslips: 'Pay statements',
+  payslip: 'Pay statement',
+  noPayslips: 'No pay statements yet.',
+  payDate: 'Paid {d}',
+  newBadge: 'New',
+  viewMyPay: 'View my pay',
+  savePdf: 'Save / share PDF',
+  contracts: 'My contracts',
+  contract: 'Employment contract',
+  noContracts: 'No contracts yet.',
+  received: 'I received it',
+  receivedAt: 'Received {t}',
+  receiveTitle: 'Confirm receipt',
+  receiveMsg: 'The current time will be recorded as proof that this employment contract was delivered to you.',
+  notReceived: 'Receipt not confirmed',
+  notifications: 'Notifications',
+  noNotifications: 'No notifications.',
+  readAll: 'Mark all read',
+  notifPrefs: 'Notification settings',
+  shiftReminder: 'Before-shift reminder',
+  shiftReminderMin: '{n} min before',
+  outReminder: 'Missing clock-out reminder',
+  outReminderHint: 'Alerts you if there is no clock-out 30 minutes after your shift ends.',
+  scheduleChange: 'Schedule change alerts',
+  minutes: '{n} min',
 };
 
 export type TKey = keyof Dict;
@@ -277,6 +356,13 @@ export function dateTime(iso: string | null | undefined): string {
 export function kindLabel(kind: string, t: T): string {
   const key = `k_${kind}` as TKey;
   return key in dicts.ko ? t(key) : kind;
+}
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2026-11" -> "2026년 11월" / "Nov 2026" */
+export function monthName(ym: string, lang: Lang): string {
+  const [y, m] = ym.split('-').map(Number);
+  return lang === 'ko' ? `${y}년 ${m}월` : `${MON[m - 1]} ${y}`;
 }
 
 export function money(n: number, t: T): string {

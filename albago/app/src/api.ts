@@ -12,7 +12,10 @@ export interface Store {
 }
 export interface HomeData {
   store: Store;
-  me: { id: string; name: string; lang: Lang; hasPin: boolean };
+  me: {
+    id: string; name: string; lang: Lang; hasPin: boolean;
+    payType?: PayType; hourlyWage?: number; monthlySalary?: number;
+  };
   status: Status;
   since: string | null;
   breakSince: string | null;
@@ -21,7 +24,9 @@ export interface HomeData {
   month: { from: string; to: string; workedMin: number; gross: number; net: number; holidayPay: number };
   records: { date: string; in: string; out: string | null; breaks: { start: string; end: string | null }[] }[];
   unread?: number;
+  notifUnread?: number;
 }
+export type PayType = 'hourly' | 'monthly';
 export type MessageKind =
   | 'notice' | 'instruction' | 'general' | 'warning' | 'discipline' | 'dismissal'
   | 'suggestion' | 'absence_reason' | 'schedule_request';
@@ -32,6 +37,26 @@ export interface Message {
   createdAt: string; readAt: string | null; requiresAck: boolean; ackAt: string | null;
   attachments: Attachment[]; hash: string;
 }
+export interface PayLine { key: string; label: string; amount: number; calc?: string }
+export interface PayData {
+  month: string; from: string; to: string; payDay: number;
+  payType: PayType; hourlyWage: number; monthlySalary: number; ordinaryRate: number;
+  workedMin: number; days: number;
+  items: PayLine[]; gross: number; deductions: PayLine[]; deductionTotal: number; net: number;
+  estimate: boolean; payslipId: string | null;
+}
+export interface Payslip {
+  id: string; from: string; to: string; payDate: string; gross: number; net: number;
+  issuedAt: string; viewedAt: string | null;
+}
+export interface Contract { id: string; title: string; createdAt: string; sharedAt: string | null; receivedAt: string | null }
+export type NotifKind = 'message' | 'payslip' | 'contract' | 'schedule' | 'shift_soon' | 'no_out';
+export interface NotificationItem {
+  id: string; kind: NotifKind; title: string; body: string; data?: { id?: string };
+  createdAt: string; readAt: string | null;
+}
+export interface Prefs { shiftReminder: boolean; shiftReminderMin: number; outReminder: boolean; scheduleChange: boolean }
+export type DocKind = 'payslip' | 'contract';
 export interface NewAttachment { name: string; type: string; data: string }
 export interface NewMessage { kind: StaffKind; title?: string; body: string; date?: string; attachments: NewAttachment[] }
 export type LoginResult =
@@ -58,6 +83,26 @@ export async function endpoint(path: string) {
   const headers: Record<string, string> = { 'X-Lang': lang === 'en' ? 'en' : 'ko' };
   if (token) headers.Authorization = `Bearer ${token}`;
   return { url: base + path, headers, token, lang };
+}
+
+/** GET a server-rendered HTML document (payslip / contract) as text. */
+export async function requestHtml(path: string): Promise<string> {
+  const { url, headers, token, lang } = await endpoint(path);
+  headers.Accept = 'text/html';
+  let res: Response;
+  try {
+    res = await fetch(url, { headers });
+  } catch {
+    throw new ApiError(0, 'NETWORK', lang === 'en' ? 'Cannot reach the server.' : '서버에 연결할 수 없어요.');
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    if (res.status === 401 && token) onUnauthorized?.();
+    let msg = `HTTP ${res.status}`;
+    try { msg = JSON.parse(text).message || msg; } catch { /* not JSON */ }
+    throw new ApiError(res.status, `HTTP_${res.status}`, msg);
+  }
+  return text;
 }
 
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -103,4 +148,17 @@ export const api = {
   ack: (id: string) => request<{ ok: boolean; ackAt: string }>('POST', `/api/staff/messages/${encodeURIComponent(id)}/ack`),
   pushToken: (token: string) => request<{ ok: boolean }>('POST', '/api/staff/push-token', { token }),
   attachmentPath: (id: string) => `/api/staff/attachments/${encodeURIComponent(id)}`,
+  pay: (month?: string) => request<PayData>('GET', `/api/staff/pay${month ? `?month=${month}` : ''}`),
+  payMonths: () => request<{ months: string[] }>('GET', '/api/staff/pay/months'),
+  payslips: () => request<{ items: Payslip[] }>('GET', '/api/staff/payslips'),
+  contracts: () => request<{ items: Contract[] }>('GET', '/api/staff/contracts'),
+  receiveContract: (id: string) =>
+    request<{ ok: boolean; receivedAt: string }>('POST', `/api/staff/contracts/${encodeURIComponent(id)}/receive`),
+  documentHtml: (kind: DocKind, id: string) =>
+    requestHtml(`/api/staff/${kind === 'payslip' ? 'payslips' : 'contracts'}/${encodeURIComponent(id)}/html`),
+  notifications: () => request<{ items: NotificationItem[]; unread: number }>('GET', '/api/staff/notifications'),
+  markRead: (ids: string[] | 'all') =>
+    request<{ ok: boolean }>('POST', '/api/staff/notifications/read', ids === 'all' ? { all: true } : { ids }),
+  prefs: () => request<Prefs>('GET', '/api/staff/prefs'),
+  setPrefs: (p: Prefs) => request<Prefs | { ok: boolean }>('PUT', '/api/staff/prefs', p),
 };

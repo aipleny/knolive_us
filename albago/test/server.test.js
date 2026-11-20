@@ -77,6 +77,54 @@ test('전체 흐름', async () => {
   assert.deepEqual([st2.premiums.overtime, st2.premiums.night, st2.premiums.holiday, st2.premiums.publicHolidayPay], [50, 50, 70, true]);
   // 상시근로자 계산 API
   assert.equal(typeof (await call('GET', '/api/owner/workforce')).body.average, 'number');
+  // ── v3: 내 급여 · 임금명세서 · 근로계약서 · 알림함 · 알림 예약 ──
+  const ym = today.slice(0, 7), mFrom = ym + '-01', mTo = C.monthEnd(ym);
+  const pay = (await call('GET', '/api/staff/pay', null, { token: tok })).body;
+  assert.equal(pay.estimate, true); assert.equal(pay.payType, 'hourly'); assert.ok(Array.isArray(pay.items));
+  assert.ok((await call('GET', '/api/staff/pay/months', null, { token: tok })).body.months.includes(ym));
+  assert.equal((await call('GET', '/api/staff/pay?month=2099-01', null, { token: tok })).status, 400);
+  // 근무시간이 있어야 명세서가 발송되므로 지난 기록 하나 추가
+  await call('POST', '/api/owner/records', { staffId: sid, date: mFrom, inTime: '09:00', outTime: '13:00' });
+  const iss = (await call('POST', '/api/owner/payslips', { from: mFrom, to: mTo, payDate: C.addDays(mTo, 10) })).body;
+  assert.equal(iss.count, 1);
+  const slips = (await call('GET', '/api/staff/payslips', null, { token: tok })).body.items;
+  assert.equal(slips.length, 1); assert.equal(slips[0].viewedAt, null);
+  const pay2 = (await call('GET', '/api/staff/pay?month=' + ym, null, { token: tok })).body;
+  assert.equal(pay2.estimate, false); assert.equal(pay2.payslipId, slips[0].id);
+  const html = await fetch(base + `/api/staff/payslips/${slips[0].id}/html`, { headers: { Authorization: 'Bearer ' + tok } });
+  assert.match(html.headers.get('content-type'), /text\/html/); const htxt = await html.text(); assert.match(htxt, /임 금 명 세 서/); assert.doesNotMatch(htxt, /<script/);
+  assert.ok((await call('GET', '/api/staff/payslips', null, { token: tok })).body.items[0].viewedAt);
+  // 다시 발송하면 이전 명세서는 대체
+  await call('POST', '/api/owner/payslips', { from: mFrom, to: mTo, payDate: C.addDays(mTo, 10) });
+  assert.equal((await call('GET', '/api/staff/payslips', null, { token: tok })).body.items.length, 1);
+  // 근로계약서: 앱 전달 → 수령 확인 → 삭제 불가
+  const ct = (await call('POST', '/api/owner/contracts', { staffId: sid, type: 'parttime', title: '단시간근로자 표준근로계약서', fields: { type: 'parttime', store: {}, worker: { name: '알바' }, days: {}, rates: {} }, share: true })).body.id;
+  const cts = (await call('GET', '/api/staff/contracts', null, { token: tok })).body.items;
+  assert.equal(cts.length, 1); assert.equal(cts[0].receivedAt, null);
+  assert.ok((await call('POST', `/api/staff/contracts/${ct}/receive`, {}, { token: tok })).body.receivedAt);
+  assert.equal((await call('DELETE', `/api/owner/contracts/${ct}`)).body.code, 'CONTRACT_SHARED');
+  // 근무표 변경 알림 + 알림함
+  await call('PUT', '/api/owner/shifts', { staffId: sid, date: C.addDays(today, 2), start: '10:00', end: '15:00' });
+  let nt = (await call('GET', '/api/staff/notifications', null, { token: tok })).body;
+  const kinds = new Set(nt.items.map(n => n.kind));
+  for (const k of ['message', 'payslip', 'contract', 'schedule']) assert.ok(kinds.has(k), 'missing notification ' + k);
+  assert.equal((await call('GET', '/api/staff/home', null, { token: tok })).body.notifUnread, nt.unread);
+  // 알림 설정
+  assert.equal((await call('PUT', '/api/staff/prefs', { shiftReminderMin: 500, outReminder: false }, { token: tok })).body.shiftReminderMin, 120);
+  await call('PUT', '/api/staff/prefs', { shiftReminderMin: 30, outReminder: true }, { token: tok });
+  // 근무 시작 전 알림: 20분 뒤 시작하는 근무 (지금은 근무 중이 아니어야 함)
+  await call('POST', '/api/staff/punch', { action: 'out', lat: 37.5, lng: 127.03 }, { token: tok });
+  const hm = ms => new Date(ms + C.KST).toISOString().slice(11, 16);
+  const tm = Date.now() + 20 * 60000;
+  if (C.kstDateOf(new Date(tm).toISOString()) === today) {
+    await call('PUT', '/api/owner/shifts', { staffId: sid, date: today, start: hm(tm), end: hm(Math.min(tm + 3600000, C.kstEpoch(today, 1439))) });
+    const reminders = require('../server').reminders;
+    reminders(); reminders();
+    nt = (await call('GET', '/api/staff/notifications', null, { token: tok })).body;
+    assert.equal(nt.items.filter(n => n.kind === 'shift_soon').length, 1, 'shift_soon once');
+  }
+  assert.ok((await call('POST', '/api/staff/notifications/read', { all: true }, { token: tok })).body.ok);
+  assert.equal((await call('GET', '/api/staff/notifications', null, { token: tok })).body.unread, 0);
   // 직원 토큰으로 사장님 API 불가
   assert.equal((await call('GET', '/api/owner/bootstrap', null, { token: tok })).status, 401);
 });

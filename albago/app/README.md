@@ -21,7 +21,10 @@ src/i18n.ts         한국어/영어 문구, KST 시각 표시
 src/ui.tsx          버튼·입력칸·카드, 색상
 src/push.ts         푸시 토큰 등록 (POST /api/staff/push-token)
 src/attachments.ts  첨부 보기 (이미지: Bearer 헤더로 표시, PDF: 캐시에 받아 공유/열기)
-src/screens/        Login, Signup, Home, Settings, Pin, Messages, Compose
+src/nav.ts          화면 목록(Params), navRef, 알림 종류 → 화면 매핑
+src/pay.ts          시급/월급 표시 문구
+src/screens/        Login, Signup, Home, Settings, Pin, Messages, Compose,
+                    Pay(내 급여), Document(명세서·계약서 보기), Contracts, Notifications(알림함)
 ```
 
 ## 실행
@@ -83,6 +86,16 @@ Android 는 USB 연결 후 `npx expo run:android` 로 로컬 빌드도 가능합
 - 실제 푸시는 실기기 + 개발/스토어 빌드에서 확인하세요(Android Expo Go 는 원격 푸시 미지원).
   Android 는 FCM 설정(`eas credentials` 에서 FCM V1 키 업로드), iOS 는 EAS 가 APNs 키를 만들어 줍니다.
 - 알림을 누르면(`data.type === "message"`) 메시지 화면이 열립니다.
+
+## 내 급여 · 임금명세서 · 근로계약서 · 알림함
+- **내 급여**(홈의 "내 급여" 타일 / 이번 달 카드): 시급·월급, 지급일, 월 선택, 지급·공제 항목, 실수령액.
+  `estimate: true` 면 "예상 금액" 배지, 확정 명세서가 있으면 "명세서 보기". 아래에 임금명세서 목록("새로 도착" = 아직 안 열어 봄).
+- **문서 보기**: 명세서·계약서 HTML 을 Bearer 로 받아 WebView(`react-native-webview`)에 표시,
+  우측 상단 "PDF 저장·공유" = `expo-print` 로 PDF 생성 → 공유 시트.
+- **내 근로계약서**(설정): 목록, 열람, "받았습니다"(교부 확인 시각 기록).
+- **알림함**(홈 상단 🔔, 배지 = `home.notifUnread`): 누르면 읽음 처리 후 종류별 화면으로 이동, "모두 읽음".
+  푸시를 눌러도 같은 규칙으로 이동하고 `data.notificationId` 를 읽음 처리합니다.
+- **알림 설정**(설정): 근무 시작 전 알림(10/30/60분), 퇴근 미기록 알림, 근무표 변경 알림 → `/api/staff/prefs`.
 
 ## 스토어 빌드·제출 (EAS)
 
