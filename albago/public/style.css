@@ -1,4 +1,5 @@
-:root{--bg:#f3f5f9;--card:#fff;--ink:#18212f;--muted:#5d6b7e;--line:#e1e6ee;--brand:#2b5ce6;--brand-ink:#fff;--brand-soft:#e8eefd;--in:#14966b;--in-soft:#e3f6ee;--out:#d4570f;--out-soft:#fdeee4;--warn:#9a6700;--warn-soft:#fff6d8;--err:#b42318;--radius:14px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--ink);background:var(--bg);font-size:15px;line-height:1.5}
+@font-face{font-family:"Pretendard";src:url("/fonts/PretendardVariable.woff2") format("woff2-variations"),url("/fonts/PretendardVariable.woff2") format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+:root{--bg:#f3f5f9;--card:#fff;--ink:#18212f;--muted:#5d6b7e;--line:#e1e6ee;--brand:#2b5ce6;--brand-ink:#fff;--brand-soft:#e8eefd;--in:#14966b;--in-soft:#e3f6ee;--out:#d4570f;--out-soft:#fdeee4;--warn:#9a6700;--warn-soft:#fff6d8;--err:#b42318;--radius:14px;font-family:Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--ink);background:var(--bg);font-size:15px;line-height:1.5}
 [hidden]{display:none!important}
 *{box-sizing:border-box}body{margin:0;background:var(--bg)}h1,h2,h3{margin:0;letter-spacing:-.3px}h1{font-size:22px}h2{font-size:18px}h3{font-size:15px}
 button,input,select,textarea{font:inherit;color:inherit}input,select,textarea{border:1px solid #c9d1dd;border-radius:9px;padding:10px 12px;background:#fff;width:100%;min-width:0}textarea{min-height:70px;resize:vertical}
@@ -43,7 +44,7 @@ fieldset{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margi
 #print-area{display:none}
 
 /* 인쇄 문서 (근로계약서·임금명세서·근무표) */
-.doc{font-family:'Batang','AppleMyungjo','Noto Serif KR',serif;color:#000;background:#fff;max-width:190mm;margin:0 auto;font-size:10pt;line-height:1.45}
+.doc{font-family:Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#000;background:#fff;max-width:190mm;margin:0 auto;font-size:10pt;line-height:1.45}
 .doc h1{text-align:center;font-size:18pt;letter-spacing:6px;margin:0 0 10px}.doc h1 small{display:block;font-size:10pt;letter-spacing:0;margin-top:4px}
 .doc p{margin:2px 0}.doc .u{display:inline-block;min-width:60px;border-bottom:1px solid #000;padding:0 4px;text-align:center}
 .doc table{font-size:9.5pt;margin:6px 0;border:1px solid #000}.doc th,.doc td{border:1px solid #000;padding:3px 5px;background:none;position:static;color:#000;text-align:center}.doc td.l,.doc th.l{text-align:left}
