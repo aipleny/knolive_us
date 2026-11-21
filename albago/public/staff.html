@@ -1,32 +1,67 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#152037"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>ALBAGO 알바고</title></head>
-<body>
-<header class="topbar"><div class="brand"><img src="/icon.svg" alt=""><div>ALBAGO 알바고 <span class="sub" id="store"></span></div></div><div class="row"><button class="lang-btn" type="button"></button><button class="top-btn" id="logout" type="button" data-i18n="LOGOUT"></button></div></header>
-<main class="wrap" style="max-width:560px">
-  <section class="card me-hero section">
-    <div class="muted" id="hello"></div>
-    <div class="status-big" id="status"></div>
-    <div class="punch-grid" id="acts"></div>
-    <p class="muted" id="today-shift" style="margin-top:12px"></p>
-    <p class="geo-note" data-i18n="WEB_GEO_NOTE"></p>
-  </section>
-  <section class="card section"><h3 data-i18n="MY_SHIFTS"></h3><ul class="list" id="shifts"></ul></section>
-  <section class="card section"><h3 id="pay-title"></h3><div class="grid" style="margin:12px 0;grid-template-columns:1fr 1fr" id="pay"></div><p class="muted" data-i18n="PAY_ESTIMATE_NOTE"></p></section>
-  <section class="card section"><h3 data-i18n="MY_RECORDS"></h3><ul class="list" id="records"></ul></section>
-  <section class="card section" id="pay-sec"><div class="spread"><h3 data-i18n="MY_PAY"></h3><select id="pay-month" style="width:auto"></select></div>
-    <p id="pay-rate" class="muted" style="margin:6px 0"></p><div id="pay-detail"></div>
-    <h4 style="margin:14px 0 6px" data-i18n="MY_PAYSLIPS"></h4><ul class="list" id="slip-list"></ul></section>
-  <section class="card section"><h3 data-i18n="MY_CONTRACTS"></h3><ul class="list" id="ct-list"></ul></section>
-  <section class="card section"><div class="spread"><h3><span data-i18n="NOTIFS"></span> <span class="badge" id="notif-badge" hidden></span></h3><button class="btn small" id="notif-all" data-i18n="READ_ALL"></button></div><ul class="list" id="notif-list"></ul>
-    <details style="margin-top:10px"><summary class="muted" data-i18n="NOTIF_PREFS"></summary><div class="grid" style="margin-top:8px;gap:6px" id="prefs"></div></details></section>
-  <section class="card section" id="msg-sec"><div class="spread"><h3><span data-i18n="TAB_MESSAGES"></span> <span class="badge" id="unread" hidden></span></h3><button class="btn small" id="msg-load" data-i18n="VIEW"></button></div>
-    <div id="msg-box" hidden>
-      <form id="msg-form" class="grid" style="margin:12px 0;gap:8px">
-        <select name="kind"><option value="general" data-i18n="MK_general"></option><option value="suggestion" data-i18n="MK_suggestion"></option><option value="absence_reason" data-i18n="MK_absence_reason"></option><option value="schedule_request" data-i18n="MK_schedule_request"></option></select>
-        <input name="title" data-i18n-ph="X_TITLE" maxlength="120"><input name="date" type="date">
-        <textarea name="body" required data-i18n-ph="X_BODY" maxlength="5000"></textarea>
-        <input type="file" name="files" multiple accept="image/*,application/pdf">
-        <button class="btn primary" data-i18n="SEND"></button><p class="muted" data-i18n="MSG_NO_EDIT"></p></form>
-      <div id="msg-list"></div></div></section>
-  <form class="card section" id="pin-form"><h3 data-i18n="MY_PIN"></h3><p class="muted" data-i18n="MY_PIN_HELP"></p><div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" required><button class="btn primary" data-i18n="SAVE"></button></div></form>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/i18n.js"></script><script src="/common.js"></script><title>ALBAGO 알바고</title></head>
+<body class="staff">
+<header class="s-head">
+  <div class="wm"><b>ALBAGO</b><span id="store"></span></div>
+  <button class="icon-btn" id="bell" type="button" aria-label="notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1d2129" stroke-width="1.8" aria-hidden="true"><path d="M6 9a6 6 0 1112 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 004 0"/></svg><span class="badge" id="notif-badge" hidden></span></button>
+</header>
+<main class="s-main">
+  <!-- 홈 -->
+  <div data-pane="home">
+    <section class="s-card">
+      <div class="muted" id="today-shift"></div>
+      <div class="big" id="status"></div>
+      <div class="punch-grid" id="acts"></div>
+      <p class="muted" style="margin:10px 0 0;font-size:12px" data-i18n="WEB_GEO_NOTE"></p>
+      <p class="muted" id="hello" hidden></p>
+    </section>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="THIS_WEEK"></h2><button type="button" data-go="work"><span data-i18n="ALL"></span> ›</button></div><ul class="list" id="week3"></ul></section>
+    <section class="s-sec"><div class="s-title"><h2 id="pay-title"></h2><button type="button" data-go="pay"><span data-i18n="DETAIL"></span> ›</button></div>
+      <div class="grid" style="margin:12px 0 4px;grid-template-columns:1fr 1fr;gap:14px" id="pay"></div><p class="muted" data-i18n="PAY_ESTIMATE_NOTE"></p></section>
+  </div>
+  <!-- 근무표 -->
+  <div data-pane="work" hidden>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="MY_SHIFTS"></h2></div><ul class="list" id="shifts"></ul></section>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="MY_RECORDS"></h2></div><ul class="list" id="records"></ul></section>
+  </div>
+  <!-- 급여 -->
+  <div data-pane="pay" hidden>
+    <section class="s-sec" id="pay-sec"><div class="s-title"><h2 data-i18n="MY_PAY"></h2><select id="pay-month" style="width:auto;height:30px;padding:0 8px"></select></div>
+      <p id="pay-rate" class="muted" style="margin:10px 0 6px"></p><div id="pay-detail"></div></section>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="MY_PAYSLIPS"></h2></div><ul class="list" id="slip-list"></ul></section>
+  </div>
+  <!-- 소통 -->
+  <div data-pane="msg" hidden>
+    <section class="s-sec" id="msg-sec"><div class="s-title"><h2 data-i18n="TAB_MESSAGES"></h2><span class="badge" id="unread" hidden></span></div>
+      <button class="btn small" id="msg-load" hidden data-i18n="VIEW"></button>
+      <div id="msg-box">
+        <details style="margin:12px 0"><summary style="cursor:pointer;font-weight:700;color:var(--brand)" data-i18n="WRITE_MSG"></summary>
+        <form id="msg-form" class="grid" style="margin:10px 0;gap:8px">
+          <select name="kind"><option value="general" data-i18n="MK_general"></option><option value="suggestion" data-i18n="MK_suggestion"></option><option value="absence_reason" data-i18n="MK_absence_reason"></option><option value="schedule_request" data-i18n="MK_schedule_request"></option></select>
+          <input name="title" data-i18n-ph="X_TITLE" maxlength="120"><input name="date" type="date">
+          <textarea name="body" required data-i18n-ph="X_BODY" maxlength="5000"></textarea>
+          <input type="file" name="files" multiple accept="image/*,application/pdf" style="height:auto">
+          <button class="btn primary" data-i18n="SEND"></button><p class="muted" data-i18n="MSG_NO_EDIT"></p></form></details>
+        <div id="msg-list"></div></div></section>
+  </div>
+  <!-- 알림함 -->
+  <div data-pane="notif" hidden>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="NOTIFS"></h2><button type="button" id="notif-all" data-i18n="READ_ALL"></button></div><ul class="list" id="notif-list"></ul></section>
+  </div>
+  <!-- 더보기 -->
+  <div data-pane="more" hidden>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="MY_CONTRACTS"></h2></div><ul class="list" id="ct-list"></ul></section>
+    <section class="s-sec"><div class="s-title"><h2 data-i18n="NOTIF_PREFS"></h2></div><div class="grid" style="margin-top:10px;gap:10px" id="prefs"></div></section>
+    <form class="s-sec" id="pin-form"><div class="s-title"><h2 data-i18n="MY_PIN"></h2></div><p class="muted" data-i18n="MY_PIN_HELP"></p><div class="row" style="flex-wrap:nowrap"><input id="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" required><button class="btn primary" data-i18n="SAVE"></button></div></form>
+    <section class="s-sec s-more"><div class="s-title"><h2 data-i18n="MORE"></h2></div>
+      <button type="button" class="lang-btn" style="border:0;border-bottom:1px solid var(--line2);border-radius:0;height:auto;padding:15px 2px;font-size:15px;font-weight:400;width:100%;justify-content:space-between"></button>
+      <button type="button" id="logout"><span data-i18n="LOGOUT"></span><span>›</span></button></section>
+  </div>
 </main>
+<nav class="s-tabs" aria-label="tabs">
+  <button type="button" data-go="home" class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3z"/></svg><span data-i18n="TAB_TODAY_STAFF"></span></button>
+  <button type="button" data-go="work"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span data-i18n="TAB_SCHEDULE"></span></button>
+  <button type="button" data-go="pay"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg><span data-i18n="TAB_PAY_STAFF"></span></button>
+  <button type="button" data-go="msg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span data-i18n="TAB_MESSAGES"></span><span class="badge" id="tab-msg-badge" hidden></span></button>
+  <button type="button" data-go="more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span data-i18n="MORE"></span></button>
+</nav>
 <script src="/staff.js"></script></body></html>

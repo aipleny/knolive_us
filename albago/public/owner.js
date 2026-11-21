@@ -28,56 +28,142 @@ const toHHMM = iso => kstTime(iso);
 
 async function boot() {
   try { await refresh(); adoptLang(O.user.lang); } catch (e) { return fail(e); }
-  langButton(() => show(tab));
+  langButton(() => { headerInfo(); show(tab); });
   $('#logout').onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); location.href = '/login'; };
   $('#kiosk-open').onclick = async e => { e.preventDefault(); if (!O.kiosk) { if (!confirm(t('KIOSK_REG_CONFIRM'))) return; await api('/api/owner/kiosk', { method: 'POST' }); } location.href = '/kiosk'; };
-  $('#tabs').onclick = e => { const x = e.target.dataset.tab; if (x) show(x); };
+  $$('.side .nav').forEach(b => b.onclick = () => show(b.dataset.tab));
+  $('#me-btn').onclick = e => { e.stopPropagation(); $('#me-pop').hidden = !$('#me-pop').hidden; };
+  document.addEventListener('click', e => { if (!e.target.closest('#me-pop')) $('#me-pop').hidden = true; if (!e.target.closest('.search')) $('#q-res').hidden = true; });
+  $('#q').oninput = search; $('#q').onfocus = search;
+  $('#q').onkeydown = e => { if (e.key === 'Enter') { const b = $('#q-res button'); if (b) b.click(); } if (e.key === 'Escape') $('#q-res').hidden = true; };
+  window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== tab) show(h); });
+  headerInfo();
   show(location.hash.slice(1) || 'today');
 }
-async function refresh() { O = await api('/api/owner/bootstrap'); $('#store').textContent = `${O.store.name} · ${t('STORE_CODE')} ${O.store.bizNo}`; }
+const TABS = ['today', 'staff', 'contract', 'schedule', 'records', 'payroll', 'messages', 'settings'];
+const TAB_KEY = { today: 'TAB_TODAY', staff: 'TAB_STAFF', contract: 'TAB_CONTRACT', schedule: 'TAB_SCHEDULE', records: 'TAB_RECORDS', payroll: 'TAB_PAYROLL', messages: 'TAB_MESSAGES', settings: 'TAB_SETTINGS' };
+function headerInfo() {
+  $('#me-btn').textContent = (O.store.ownerName || O.user.loginId || '?').slice(0, 1);
+  $('#me-who').innerHTML = `<b style="color:var(--ink)">${esc(O.store.name)}</b><br>${t('STORE_CODE')} ${esc(O.store.bizNo)}<br>${esc(O.user.loginId)}`;
+  const pend = O.staff.filter(s => s.status === 'pending').length;
+  $('#b-staff').hidden = !pend; $('#b-staff').textContent = pend;
+}
+function search() {
+  const v = $('#q').value.trim().toLowerCase(), box = $('#q-res');
+  if (!v) { box.hidden = true; return; }
+  const menus = TABS.map(k => ({ label: t(TAB_KEY[k]), go: () => show(k) })).filter(m => m.label.toLowerCase().includes(v));
+  const people = O.staff.filter(s => s.name.toLowerCase().includes(v) || String(s.phone || '').includes(v)).slice(0, 6).map(s => ({ label: `${s.name} · ${t('TAB_STAFF')}`, go: () => { show('staff'); openStaff(s); } }));
+  const all = [...menus, ...people];
+  box.innerHTML = all.length ? all.map((r, i) => `<button type="button" data-i="${i}">${esc(r.label)}</button>`).join('') : `<div class="muted" style="padding:10px 14px">${t('NO_RESULT')}</div>`;
+  box.hidden = false;
+  $$('#q-res button').forEach(b => b.onclick = () => { all[b.dataset.i].go(); box.hidden = true; $('#q').value = ''; });
+}
+async function refresh() { O = await api('/api/owner/bootstrap'); }
 async function show(x) {
-  tab = x; history.replaceState(null, '', '#' + x);
-  $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === x));
+  if (!TABS.includes(x)) x = 'today';
+  tab = x; if (location.hash.slice(1) !== x) history.replaceState(null, '', '#' + x);
+  $$('.side .nav').forEach(b => b.classList.toggle('active', b.dataset.tab === x));
   $$('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== x);
+  $('#page-h').textContent = t(TAB_KEY[x]);
+  $('#page-date').textContent = x === 'today' ? md(O.today) : '';
+  window.scrollTo(0, 0);
   try { await ({ today: renderToday, staff: renderStaff, schedule: renderSchedule, records: renderRecords, payroll: renderPayroll, messages: renderMessages, contract: renderContract, settings: renderSettings })[x](); } catch (e) { fail(e); }
 }
 
-// ═══ 오늘 ═══
+// ═══ 오늘 (업무 콘솔형 대시보드) ═══
+const minOfDay = iso => { const d = new Date(Date.parse(iso) + KST); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
 async function renderToday() {
-  await refresh();
-  const d = O.today, [recs, sh] = await Promise.all([api(`/api/owner/records?from=${addDays(d, -2)}&to=${d}`), api(`/api/owner/shifts?from=${d}&to=${d}`)]);
-  const shiftOf = id => sh.shifts.find(s => s.staffId === id) || null;
-  const staff = active(), pending = O.staff.filter(s => s.status === 'pending');
-  const alerts = [];
-  if (pending.length) alerts.push(t('AL_PENDING', { n: pending.length }));
-  if (O.store.lat == null) alerts.push(t('AL_NO_LOCATION'));
-  for (const s of staff) {
-    if (s.payType !== 'monthly' && minWage() && s.hourlyWage < minWage()) alerts.push(t('AL_MINWAGE', { name: s.name, wage: won(s.hourlyWage), min: won(minWage()) }));
-    const next = O.store.settings.minWages[+d.slice(0, 4) + 1];
-    if (next && s.payType !== 'monthly' && s.hourlyWage < next && d.slice(5) >= '11-01') alerts.push(t('AL_NEXT_MINWAGE', { name: s.name, min: won(next) }));
-    for (const [k, label] of [['visaExpiry', 'VISA_EXPIRY'], ['healthCert', 'HEALTH_CERT']]) if (s[k] && s[k] <= addDays(d, 30)) alerts.push(t('AL_EXPIRE', { name: s.name, what: t(label), date: s[k] }));
-    if (s.nationality === 'FOREIGN' && /^D-?[24]/i.test(s.visa || '')) alerts.push(t('AL_D2', { name: s.name }));
-    const age = ageOn(s.birth, d); if (age !== null && age < 18) alerts.push(t('AL_MINOR', { name: s.name, age }));
-    if (!s.hasPin && !s.hasLogin) alerts.push(t('AL_NO_PIN', { name: s.name }));
-  }
-  for (const r of recs.rows) if (!r.out && Date.now() - Date.parse(r.in) > 16 * 3600000) alerts.push(t('AL_NO_OUT', { name: r.name, date: md(r.date), time: toHHMM(r.in) }));
+  await refresh(); headerInfo();
+  const d = O.today, ym = d.slice(0, 7), prev = addDays(ym + '-01', -1).slice(0, 7);
+  const [recs, sh, pay, msgs, prevSlips, prevPay] = await Promise.all([
+    api(`/api/owner/records?from=${addDays(d, -2)}&to=${d}`), api(`/api/owner/shifts?from=${d}&to=${d}`),
+    api(`/api/owner/payroll?from=${ym}-01&to=${d}`), api('/api/owner/messages'),
+    api(`/api/owner/payslips?from=${prev}-01&to=${monthEnd(prev)}`), api(`/api/owner/payroll?from=${prev}-01&to=${monthEnd(prev)}`)]);
+  const unreadMsg = Object.values(msgs.unread).reduce((a, b) => a + b, 0);
+  $('#b-msg').hidden = !unreadMsg; $('#b-msg').textContent = unreadMsg;
+  const staff = active(), shiftOf = id => sh.shifts.find(s => s.staffId === id) || null;
   const todays = recs.rows.filter(r => r.date === d);
+  if (!staff.length) {
+    panel('today').innerHTML = `<div class="card"><div class="empty"><b>${t('EMPTY_STAFF_T')}</b>${t('EMPTY_STAFF_D')}<br><button class="btn primary" id="first-staff">${t('ADD_STAFF')}</button></div></div>`;
+    $('#first-staff').onclick = () => { show('staff'); openStaff(null); };
+    return;
+  }
+  const nowMin = minOfDay(new Date().toISOString());
+  const rows = staff.map(s => {
+    const shift = shiftOf(s.id), mine = todays.filter(r => r.staffId === s.id).sort((a, b) => a.in.localeCompare(b.in));
+    const first = mine[0], late = first && shift ? Math.round((Date.parse(first.in) - Date.parse(`${d}T${shift.start}:00+09:00`)) / 60000) : 0;
+    const absent = shift && !mine.length && nowMin > +shift.start.slice(0, 2) * 60 + +shift.start.slice(3) + 10;
+    return { s, shift, mine, late: late > 5 ? late : 0, absent };
+  }).filter(r => r.shift || r.mine.length);
+  // 할 일
+  const todos = [];
+  const pending = O.staff.filter(s => s.status === 'pending');
+  for (const p of pending) todos.push({ text: t('TODO_APPROVE', { name: p.name }), btn: t('APPROVE'), go: () => show('staff') });
+  for (const r of recs.rows) if (!r.out && Date.now() - Date.parse(r.in) > 16 * 3600000) todos.push({ text: t('TODO_NO_OUT', { name: r.name, date: md(r.date) }), btn: t('FIX'), go: () => { RF = { from: r.date, to: r.date, staffId: r.staffId }; show('records'); } });
+  const unpaid = prevPay.list.filter(p => p.gross > 0 && !prevSlips.items.some(x => x.staffId === p.staffId));
+  if (unpaid.length) todos.push({ text: t('TODO_SLIPS', { month: +prev.slice(5), n: unpaid.length }), btn: t('SEND'), go: () => { PF = { mode: 'month', month: prev, week: weekStartOf(d) }; show('payroll'); } });
+  const waitCt = O.contracts.filter(c => c.sharedAt && !c.receivedAt).length;
+  if (waitCt) todos.push({ text: t('TODO_CONTRACT', { n: waitCt }), btn: t('VIEW'), go: () => show('contract') });
+  if (unreadMsg) todos.push({ text: t('TODO_MSG', { n: unreadMsg }), btn: t('VIEW'), go: () => show('messages') });
+  if (O.store.lat == null) todos.push({ text: t('AL_NO_LOCATION'), btn: t('SET'), go: () => show('settings') });
+  for (const s of staff) {
+    if (s.payType !== 'monthly' && minWage() && s.hourlyWage < minWage()) todos.push({ text: t('AL_MINWAGE', { name: s.name, wage: won(s.hourlyWage), min: won(minWage()) }), btn: t('EDIT'), go: () => { show('staff'); openStaff(s); } });
+    const next = O.store.settings.minWages[+d.slice(0, 4) + 1];
+    if (next && s.payType !== 'monthly' && s.hourlyWage < next && d.slice(5) >= '11-01') todos.push({ text: t('AL_NEXT_MINWAGE', { name: s.name, min: won(next) }), btn: t('EDIT'), go: () => { show('staff'); openStaff(s); } });
+    for (const [k, label] of [['visaExpiry', 'VISA_EXPIRY'], ['healthCert', 'HEALTH_CERT']]) if (s[k] && s[k] <= addDays(d, 30)) todos.push({ text: t('AL_EXPIRE', { name: s.name, what: t(label), date: s[k] }), btn: t('EDIT'), go: () => { show('staff'); openStaff(s); } });
+    if (!s.hasPin && !s.hasLogin) todos.push({ text: t('AL_NO_PIN', { name: s.name }), btn: t('EDIT'), go: () => { show('staff'); openStaff(s); } });
+  }
+  const working = staff.filter(s => s.work.status !== 'off').length, scheduled = staff.filter(s => shiftOf(s.id)).length;
+  const lateN = rows.filter(r => r.late || r.absent).length;
+  const cost = pay.list.reduce((a, p) => a + p.totalCost, 0);
+  // 타임라인 범위
+  const mins = [];
+  for (const r of rows) { if (r.shift) { const a = +r.shift.start.slice(0, 2) * 60 + +r.shift.start.slice(3); let b = +r.shift.end.slice(0, 2) * 60 + +r.shift.end.slice(3); if (b <= a) b += 1440; mins.push(a, b); } for (const m of r.mine) { mins.push(minOfDay(m.in)); if (m.out) mins.push(minOfDay(m.out) < minOfDay(m.in) ? minOfDay(m.out) + 1440 : minOfDay(m.out)); } }
+  mins.push(nowMin);
+  const lo = Math.max(0, Math.floor((Math.min(...mins) - 30) / 60) * 60), hi = Math.min(1440 + 360, Math.ceil((Math.max(...mins) + 30) / 60) * 60), span = Math.max(60, hi - lo);
+  const pct = m => `${Math.max(0, Math.min(100, (m - lo) / span * 100)).toFixed(2)}%`;
+  const wid = (a, b) => `${Math.max(1.5, (Math.min(b, hi) - Math.max(a, lo)) / span * 100).toFixed(2)}%`;
+  const ticks = []; for (let h = lo; h <= hi; h += Math.max(60, Math.ceil(span / 60 / 8) * 60)) ticks.push(String(Math.floor(h / 60) % 24).padStart(2, '0'));
+  const lane = r => {
+    let h = '';
+    if (r.shift) { const a = +r.shift.start.slice(0, 2) * 60 + +r.shift.start.slice(3); let b = +r.shift.end.slice(0, 2) * 60 + +r.shift.end.slice(3); if (b <= a) b += 1440; h += `<div class="bar plan" style="left:${pct(a)};width:${wid(a, b)}${r.absent ? ';color:var(--err);border-color:var(--err);font-weight:700' : ''}">${!r.mine.length ? esc((r.absent ? t('ST_ABSENT') + ' · ' : '') + r.shift.start + ' ~ ' + r.shift.end) : ''}</div>`; }
+    for (const m of r.mine) {
+      const a = minOfDay(m.in); let b = m.out ? minOfDay(m.out) : nowMin; if (b < a) b += 1440;
+      const st = !m.out ? (r.s.work.status === 'break' ? 'rest' : 'work') : 'done';
+      const label = !m.out ? (st === 'rest' ? t('ST_BREAK') : `${t('ST_IN')} · ${kstTime(m.in)}`) + (r.late ? ` · ${t('LATE', { m: r.late })}` : '') : `${kstTime(m.in)} ~ ${kstTime(m.out)}`;
+      h += `<div class="bar ${st}" style="left:${pct(a)};width:${wid(a, b)}">${esc(label)}</div>`;
+    }
+    return `<span class="who">${esc(r.s.name)}</span><div class="lane">${h}<div class="now" style="left:${pct(nowMin)}"></div></div>`;
+  };
   panel('today').innerHTML = `
-  <div class="kpis"><div class="card stat"><span>${t('K_WORKING')}</span><strong>${staff.filter(s => s.work.status !== 'off').length}${t('PEOPLE')}</strong></div>
-  <div class="card stat"><span>${t('K_SCHEDULED')}</span><strong>${staff.filter(s => shiftOf(s.id)).length}${t('PEOPLE')}</strong></div>
-  <div class="card stat"><span>${t('K_STAFF')}</span><strong>${staff.length}${t('PEOPLE')}</strong></div>
-  <div class="card stat"><span>${t('K_ALERTS')}</span><strong>${alerts.length}</strong></div></div>
-  ${alerts.map(a => `<div class="warnbox">${esc(a)}</div>`).join('')}
-  <div class="card section" style="margin-top:14px"><div class="spread"><h2>${md(d)} ${t('TODAY_STATUS')}</h2><button class="btn small" id="reload">${t('REFRESH')}</button></div>
-  <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${t('NAME')}</th><th>${t('SCHEDULE')}</th><th>${t('IN')}</th><th>${t('BREAK')}</th><th>${t('OUT')}</th><th>${t('STATUS')}</th></tr></thead><tbody>
-  ${staff.map(s => {
-    const sh = shiftOf(s.id), mine = todays.filter(r => r.staffId === s.id), f = mine[0], l = mine[mine.length - 1];
-    let st = s.work.status !== 'off' ? (s.work.status === 'break' ? `<span class="pill" style="background:#efeafd;color:#6b4fd8">${t('ST_BREAK')}</span>` : `<span class="pill in">${t('ST_IN')}</span>`) : mine.length ? `<span class="pill">${t('ST_DONE')}</span>` : sh ? `<span class="pill warn">${t('ST_ABSENT')}</span>` : `<span class="pill">${t('OFF_DAY')}</span>`;
-    if (s.work.exitPending) st += ` <span class="pill out">${t('ST_EXIT_PENDING')}</span>`;
-    if (f && sh) { const late = Math.round((Date.parse(f.in) - Date.parse(`${d}T${sh.start}:00+09:00`)) / 60000); if (late > 5) st += ` <span class="pill out">${t('LATE', { m: late })}</span>`; }
-    return `<tr><td><span style="color:${esc(s.color || '#2459e0')}">●</span> ${esc(s.name)}</td><td>${esc(shiftText(sh))}</td><td>${f ? toHHMM(f.in) + ' ' + srcBadge(f.srcIn) : ''}</td><td>${f ? esc(f.breaks.map(b => toHHMM(b.start) + '~' + (b.end ? toHHMM(b.end) : '')).join(', ')) : ''}</td><td>${l && l.out ? toHHMM(l.out) + ' ' + srcBadge(l.srcOut) : ''}</td><td>${st}</td></tr>`;
-  }).join('') || `<tr><td colspan="6" class="muted">${t('NO_STAFF')}</td></tr>`}</tbody></table></div></div>`;
-  $('#reload').onclick = renderToday;
+  <div class="kpis">
+    <div class="card stat"><span>${t('K_WORKING')}</span><strong>${working}<small> / ${scheduled}${t('PEOPLE') || ''}</small></strong></div>
+    <div class="card stat"><span>${t('K_LATE')}</span><strong>${lateN}<small>${t('PEOPLE')}</small></strong></div>
+    <div class="card stat"><span>${t('K_ALERTS')}</span><strong style="color:${todos.length ? 'var(--err)' : 'inherit'}">${todos.length}<small>${t('COUNT_UNIT')}</small></strong></div>
+    <div class="card stat"><span>${t('K_COST', { m: +ym.slice(5) })}</span><strong>${won(cost)}</strong></div>
+  </div>
+  <section class="card section"><div class="spread"><h2>${t('TODAY_WORK')}</h2><div class="row"><button class="btn small" id="t-reload">${t('REFRESH')}</button><button class="btn small" id="t-sched">${t('EDIT_SCHEDULE')}</button></div></div>
+    ${rows.length ? `<div class="tl"><span></span><div class="axis">${ticks.map(x => `<span>${x}</span>`).join('')}</div>${rows.map(lane).join('')}</div>` : `<div class="empty"><b>${t('EMPTY_TODAY_T')}</b>${t('EMPTY_TODAY_D')}</div>`}
+  </section>
+  <div class="two">
+    <section class="card"><h2>${t('TODO_TITLE')}</h2>
+      ${todos.length ? todos.slice(0, 8).map((x, i) => `<div class="todo"><span>${esc(x.text)}</span><button class="btn small" data-todo="${i}" style="color:var(--brand)">${esc(x.btn)}</button></div>`).join('') : `<div class="empty" style="padding:24px"><b>${t('TODO_NONE')}</b></div>`}
+    </section>
+    <section class="card"><h2>${t('QUICK_TITLE')}</h2>
+      <div class="quick">
+        <button data-q="staff"><span>${t('Q_STAFF')}</span><small>${t('Q_STAFF_D')}</small></button>
+        <button data-q="schedule"><span>${t('Q_SCHEDULE')}</span><small>${t('Q_SCHEDULE_D')}</small></button>
+        <button data-q="payroll"><span>${t('Q_PAYROLL')}</span><small>${t('Q_PAYROLL_D')}</small></button>
+        <button data-q="notice"><span>${t('Q_NOTICE')}</span><small>${t('Q_NOTICE_D')}</small></button>
+        <button data-q="contract"><span>${t('Q_CONTRACT')}</span><small>${t('Q_CONTRACT_D')}</small></button>
+        <button data-q="excel"><span>${t('Q_EXCEL')}</span><small>${t('Q_EXCEL_D')}</small></button>
+      </div>
+    </section>
+  </div>`;
+  $('#t-reload').onclick = renderToday; $('#t-sched').onclick = () => show('schedule');
+  $$('[data-todo]').forEach(b => b.onclick = () => todos[b.dataset.todo].go());
+  const Q = { staff: () => { show('staff'); openStaff(null); }, schedule: () => show('schedule'), payroll: () => show('payroll'), notice: () => { MSG_SEL = 'notice'; show('messages'); }, contract: () => show('contract'), excel: () => download(`/api/owner/export/records.xlsx?from=${ym}-01&to=${d}`) };
+  $$('[data-q]').forEach(b => b.onclick = Q[b.dataset.q]);
 }
 
 // ═══ 직원 ═══
@@ -400,8 +486,8 @@ function ctFields(s) {
 async function renderSettings() {
   await refresh();
   const st = O.store, s = st.settings, g = s.geo, r = s.rates;
-  panel('settings').innerHTML = `
-  <div class="card section"><h2>${t('KIOSK_TITLE')}</h2><p class="muted" style="margin:6px 0 12px">${t('KIOSK_SET_HELP')}</p>
+  panel('settings').innerHTML = `<nav class="subnav">${[['f-store', 'STORE_INFO'], ['f-scale', 'SCALE_TITLE'], ['f-rules', 'RULES'], ['f-geo', 'AUTO_TITLE'], ['k-card', 'KIOSK_TITLE'], ['f-pw', 'CHANGE_PW']].map(([id, k]) => `<a href="#" data-jump="${id}">${t(k)}</a>`).join('')}</nav>
+  <div class="card section" id="k-card"><h2>${t('KIOSK_TITLE')}</h2><p class="muted" style="margin:6px 0 12px">${t('KIOSK_SET_HELP')}</p>
     <div class="row">${O.kiosk ? `<span class="pill in">${t('KIOSK_THIS_ON')}</span>` : ''}<button class="btn primary" id="k-reg">${t('KIOSK_REG')}</button><button class="btn danger" id="k-reset">${t('KIOSK_RESET')}</button></div></div>
   <form class="card section" id="f-store"><h2>${t('STORE_INFO')}</h2><div class="grid g3" style="margin-top:12px">
     <label class="f"><span>${t('STORE_CODE')}</span><input value="${esc(st.bizNo)}" disabled></label><label class="f"><span>${t('STORE_NAME')}</span><input name="name" value="${esc(st.name)}"></label><label class="f"><span>${t('OWNER_NAME')}</span><input name="ownerName" value="${esc(st.ownerName)}"></label>
@@ -445,6 +531,7 @@ async function renderSettings() {
     <button class="btn primary" style="margin-top:12px">${t('SAVE')}</button></form>
   <form class="card section" id="f-pw"><h2>${t('CHANGE_PW')}</h2><p class="muted">${t('LOGIN_EMAIL', { email: O.user.email })}</p><div class="grid g3" style="margin-top:12px"><label class="f"><span>${t('CURRENT_PW')}</span><input type="password" name="current" required autocomplete="current-password"></label><label class="f"><span>${t('NEW_PW')}</span><input type="password" name="next" required autocomplete="new-password"></label></div><button class="btn primary" style="margin-top:12px">${t('CHANGE_PW')}</button></form>
   <div class="card section"><h2>${t('AUDIT')}</h2><button class="btn" id="audit-btn" style="margin-top:10px">${t('VIEW')}</button><div id="audit" style="margin-top:10px"></div></div>`;
+  $$('[data-jump]').forEach(a => a.onclick = e => { e.preventDefault(); document.getElementById(a.dataset.jump).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   const save = async (body, after) => { try { await api('/api/owner/store', { method: 'PUT', body }); toast(t('SAVED'), 'ok'); await refresh(); after && after(); } catch (e) { fail(e); } };
   $('#f-store').onsubmit = e => { e.preventDefault(); const f = e.target; save({ store: { name: f.name.value, ownerName: f.ownerName.value, address: f.address.value, phone: f.phone.value, industry: f.industry.value, lat: f.lat.value, lng: f.lng.value } }, renderSettings); };
   $('#geo-addr').onclick = async () => { const f = $('#f-store'); try { const r2 = await api('/api/owner/geocode', { method: 'POST', body: { address: f.address.value } }); f.lat.value = r2.lat; f.lng.value = r2.lng; toast(r2.address); } catch (e) { toast(e.message, 'error'); } };

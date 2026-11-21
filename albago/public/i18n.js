@@ -35,7 +35,7 @@
     MY_PIN: '기록부용 PIN', MY_PIN_HELP: '매장 공용 기기(출퇴근 기록부)에서 쓸 숫자 4~6자리', NO_RECORDS: '기록이 없습니다.', CONFIRM_OUT: '퇴근을 기록할까요?', WORK_HOURS: '근무시간', BASE_PAY: '기본급', HOLIDAY_PAY: '주휴수당', EXTRA_PAY: '연장·야간 가산', GROSS: '세전 합계', NET_EST: '실수령 예상',
     // 사장님 탭
     TAB_TODAY: '오늘', TAB_STAFF: '직원', TAB_SCHEDULE: '근무표', TAB_RECORDS: '출퇴근 기록', TAB_PAYROLL: '급여', TAB_CONTRACT: '근로계약서', TAB_SETTINGS: '설정',
-    K_WORKING: '근무 중', K_SCHEDULED: '오늘 근무 예정', K_STAFF: '재직 직원', K_ALERTS: '확인 필요', TODAY_STATUS: '출근 현황', SCHEDULE: '예정',
+    K_WORKING: '근무 중', K_SCHEDULED: '오늘 근무 예정', K_STAFF: '재직 직원', K_ALERTS: '처리할 일', TODAY_STATUS: '출근 현황', SCHEDULE: '예정',
     AL_PENDING: '가입 승인 대기 중인 알바가 {n}명 있습니다. 직원 탭에서 승인하세요.', AL_NO_LOCATION: '매장 위치가 없어 앱 자동 출퇴근이 동작하지 않습니다. 설정에서 매장 위치를 지정하세요.',
     AL_MINWAGE: '{name}: 시급 {wage}이 최저임금 {min}보다 낮습니다.', AL_NEXT_MINWAGE: '{name}: 내년 최저임금 {min} 적용 전 시급 조정이 필요합니다.', AL_EXPIRE: '{name}: {what} 만료 예정 ({date})', AL_D2: '{name}: 유학(D-2)·어학연수(D-4) 비자는 출입국 시간제취업 허가가 필요합니다.',
     AL_MINOR: '{name}: 만 {age}세 연소근로자 — 친권자 동의서·가족관계증명서, 1일 7시간·주 35시간 이내, 야간·휴일근로 제한', AL_NO_PIN: '{name}: 앱 계정도 PIN도 없어 출퇴근을 기록할 수 없습니다.', AL_NO_OUT: '{name}: {date} {time} 출근 후 퇴근 기록이 없습니다.',
@@ -273,6 +273,25 @@
     MY_RATE_HOURLY: 'Hourly wage {w}', MY_RATE_MONTHLY: 'Monthly salary {s} · hourly rate {r}', PAYDAY_N: 'paid on day {d} each month', ESTIMATE: 'Estimate', CONFIRMED: 'Confirmed', VIEW_PAYSLIP: 'View statement', ESTIMATE_NOTE: 'This becomes the confirmed amount once the owner issues your pay statement.', NEW: 'New',
     CT_RECEIVE_BTN: 'I received it', CT_RECEIVE_CONFIRM: 'The time you confirm receipt of the contract will be recorded.',
     PREF_SOON: 'Before-shift reminder', MIN_BEFORE: '{m} min before', PREF_NOOUT: 'Missing clock-out reminder', PREF_SCHEDULE: 'Schedule change alerts',
+  });
+  // ── v4: 새 화면 구성 (사장님 콘솔형 · 알바 포털형) ──
+  Object.assign(ko, {
+    TAB_PAYROLL: '급여·명세서', GRP_PEOPLE: '사람', GRP_WORK: '근무', GRP_MONEY: '돈', GRP_STORE: '매장', KIOSK_OPEN: '출퇴근 기록부 열기', SEARCH_PH: '직원·메뉴 검색', NO_RESULT: '찾는 결과가 없어요',
+    EMPTY_STAFF_T: '아직 등록한 직원이 없어요', EMPTY_STAFF_D: '직원을 등록하면 근무표와 출퇴근, 급여 계산을 바로 쓸 수 있어요.',
+    K_LATE: '지각·결근', COUNT_UNIT: '건', K_COST: '{m}월 인건비 (오늘까지)', TODAY_WORK: '오늘 근무', EDIT_SCHEDULE: '근무표 수정', EMPTY_TODAY_T: '오늘은 근무 일정이 없어요', EMPTY_TODAY_D: '근무표에서 일정을 넣으면 여기서 출근 현황을 볼 수 있어요.',
+    TODO_TITLE: '처리할 일', TODO_NONE: '처리할 일이 없어요', QUICK_TITLE: '바로 하기', FIX: '고치기', SET: '설정',
+    TODO_APPROVE: '{name}님 가입 승인 대기', TODO_NO_OUT: '{name} {date} 퇴근 미기록', TODO_SLIPS: '{month}월 임금명세서 {n}명 미발송', TODO_CONTRACT: '근로계약서 {n}명 수령 대기', TODO_MSG: '읽지 않은 직원 메시지 {n}건',
+    Q_STAFF: '직원 등록', Q_STAFF_D: '이름·연락처·시급', Q_SCHEDULE: '근무표 일괄 등록', Q_SCHEDULE_D: '평일·주말 한 번에', Q_PAYROLL: '급여 확정·발송', Q_PAYROLL_D: '명세서를 앱으로', Q_NOTICE: '전체 공지', Q_NOTICE_D: '모든 직원에게', Q_CONTRACT: '근로계약서 작성', Q_CONTRACT_D: '표준 양식 5종', Q_EXCEL: '이번 달 엑셀', Q_EXCEL_D: '출퇴근 기록부·근무일지',
+    SINCE_IN: '{time} 출근', SINCE_BREAK: '{time}부터 휴식', WRITE_MSG: '+ 사장님께 보내기 (건의·결근 사유서·근무 변경)', MORE: '더보기', TAB_TODAY_STAFF: '홈', TAB_PAY_STAFF: '급여',
+  });
+  Object.assign(en, {
+    TAB_PAYROLL: 'Payroll', GRP_PEOPLE: 'PEOPLE', GRP_WORK: 'WORK', GRP_MONEY: 'PAY', GRP_STORE: 'STORE', KIOSK_OPEN: 'Open attendance log', SEARCH_PH: 'Search staff or menus', NO_RESULT: 'No results',
+    EMPTY_STAFF_T: 'No staff yet', EMPTY_STAFF_D: 'Add staff to start using schedules, attendance and payroll.',
+    K_LATE: 'Late / absent', COUNT_UNIT: '', K_COST: 'Labor cost, month {m} (to date)', TODAY_WORK: "Today's shifts", EDIT_SCHEDULE: 'Edit schedule', EMPTY_TODAY_T: 'No shifts today', EMPTY_TODAY_D: 'Add shifts in the schedule to see attendance here.',
+    TODO_TITLE: 'To do', TODO_NONE: 'Nothing to do', QUICK_TITLE: 'Shortcuts', FIX: 'Fix', SET: 'Set up',
+    TODO_APPROVE: '{name} is waiting for approval', TODO_NO_OUT: '{name}: no clock-out on {date}', TODO_SLIPS: 'Pay statements for month {month} not sent ({n})', TODO_CONTRACT: '{n} contract(s) awaiting receipt', TODO_MSG: '{n} unread staff message(s)',
+    Q_STAFF: 'Add staff', Q_STAFF_D: 'Name, phone, wage', Q_SCHEDULE: 'Bulk schedule', Q_SCHEDULE_D: 'Weekdays/weekends at once', Q_PAYROLL: 'Confirm & send pay', Q_PAYROLL_D: 'Statements to the app', Q_NOTICE: 'Notice to all', Q_NOTICE_D: 'Message every staff member', Q_CONTRACT: 'Labor contract', Q_CONTRACT_D: '5 standard forms', Q_EXCEL: 'This month in Excel', Q_EXCEL_D: 'Attendance & work log',
+    SINCE_IN: 'In at {time}', SINCE_BREAK: 'Break since {time}', WRITE_MSG: '+ Write to the owner (suggestion, absence, schedule)', MORE: 'More', TAB_TODAY_STAFF: 'Home', TAB_PAY_STAFF: 'Pay',
   });
   const DICT = { ko, en };
   function t(lang, key, params) {

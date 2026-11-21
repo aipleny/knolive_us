@@ -9,16 +9,17 @@ async function load() {
 function render() {
   $('#store').textContent = H.store.name;
   $('#hello').textContent = t('HELLO', { name: H.me.name });
-  $('#status').innerHTML = H.status === 'in' ? `<span class="pill in">${t('ST_IN')}</span> ${t('SINCE', { time: kstTime(H.since) })}` : H.status === 'break' ? `<span class="pill" style="background:#efeafd;color:#6b4fd8">${t('ST_BREAK')}</span> ${t('SINCE', { time: kstTime(H.breakSince) })}` : `<span class="pill">${t('ST_OFF')}</span>`;
+  $('#status').innerHTML = H.status === 'in' ? `${t('SINCE_IN', { time: kstTime(H.since) })} · <span style="color:var(--in)">${t('ST_IN')}</span>` : H.status === 'break' ? `${t('SINCE_BREAK', { time: kstTime(H.breakSince) })} · <span style="color:var(--brk)">${t('ST_BREAK')}</span>` : `<span style="color:var(--sub)">${t('ST_OFF')}</span>`;
   const acts = H.status === 'off' ? [['in', 'in wide']] : H.status === 'in' ? [['break_start', 'brk'], ['out', 'out']] : [['break_end', 'brk'], ['out', 'out']];
   $('#acts').innerHTML = acts.map(([a, c]) => `<button class="btn ${c}" data-a="${a}">${t('ACT_' + a.toUpperCase())}</button>`).join('');
   $$('#acts [data-a]').forEach(b => b.onclick = () => punch(b.dataset.a, b));
-  $('#today-shift').textContent = t('TODAY_SHIFT') + ': ' + shiftText(H.today.shift);
+  $('#today-shift').textContent = `${md(H.today.date)} · ${t('TODAY_SHIFT')} ${shiftText(H.today.shift)}`;
+  $('#week3').innerHTML = H.shifts.filter(x => x.date > H.today.date).slice(0, 3).map(x => `<li><span>${md(x.date)}</span><span class="${x.shift ? '' : 'muted'}">${esc(shiftText(x.shift))}</span></li>`).join('');
   $('#shifts').innerHTML = H.shifts.map(s => `<li><span>${md(s.date)}${s.date === H.today.date ? ` <span class="pill warn">${t('TODAY')}</span>` : ''}</span><span class="${s.shift ? '' : 'muted'}">${esc(shiftText(s.shift))}</span></li>`).join('');
   const m = H.month;
   $('#pay-title').textContent = t('MONTH_PAY', { from: m.from.slice(5), to: m.to.slice(5) });
-  $('#pay').innerHTML = [['WORK_HOURS', hours(m.workedMin)], ['BASE_PAY', won(m.base)], ['HOLIDAY_PAY', won(m.holidayPay)], ['EXTRA_PAY', won(m.overtimePay + m.nightPay)], ['GROSS', won(m.gross)], ['NET_EST', won(m.net)]].map(([k, v]) => `<div class="stat"><span>${t(k)}</span><strong>${v}</strong></div>`).join('');
-  if (H.unread) { $('#unread').hidden = false; $('#unread').textContent = H.unread; }
+  $('#pay').innerHTML = `<div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span class="muted">${H.me.payType === 'monthly' ? t('MY_RATE_MONTHLY', { s: won(H.me.monthlySalary), r: '' }).replace(/ · .*$/, '') : t('MY_RATE_HOURLY', { w: won(H.me.hourlyWage) })} · ${hours(m.workedMin)}</span><b style="font-size:22px">${won(m.net)}</b></div>`;
+  for (const id of ['#unread', '#tab-msg-badge']) { $(id).hidden = !H.unread; $(id).textContent = H.unread; }
   $('#records').innerHTML = H.records.length ? H.records.map(r => `<li><span>${md(r.date)}</span><span>${kstTime(r.in)} ~ ${r.out ? kstTime(r.out) : `<span class="pill in">${t('ST_IN')}</span>`}${r.breaks.length ? ` <small class="muted">(${t('BREAK')} ${r.breaks.map(b => kstTime(b.start) + '~' + kstTime(b.end)).join(', ')})</small>` : ''}</span></li>`).join('') : `<li class="muted">${t('NO_RECORDS')}</li>`;
 }
 const position = () => new Promise(res => { if (!navigator.geolocation) return res({}); navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }), () => res({}), { enableHighAccuracy: true, timeout: 10000 }); });
@@ -81,5 +82,15 @@ async function loadDocs() {
 $('#notif-all').onclick = async () => { await api('/api/staff/notifications/read', { method: 'POST', body: { all: true } }); loadDocs(); };
 loadDocs().catch(e => toast(e.message, 'error'));
 
+// 아래 탭 이동
+function go(pane) {
+  $$('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== pane);
+  $$('.s-tabs [data-go]').forEach(b => b.classList.toggle('active', b.dataset.go === pane));
+  window.scrollTo(0, 0);
+  if (pane === 'msg') loadMsgs().then(() => { $('#tab-msg-badge').hidden = true; }).catch(e => toast(e.message, 'error'));
+  if (pane === 'pay' || pane === 'notif' || pane === 'more') loadDocs().catch(e => toast(e.message, 'error'));
+}
+$$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+$('#bell').onclick = () => go('notif');
 langButton(() => { if (H) render(); });
 load();
