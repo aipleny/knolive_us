@@ -11,21 +11,32 @@
 
 ```
 index.ts            진입점 (지오펜스 작업 정의 import, 알림 핸들러)
-App.tsx             화면 이동 (로그인 전: 로그인/가입, 로그인 후: 홈/설정/PIN)
+App.tsx             폰트 로딩·스플래시, 화면 이동 (로그인 전: 로그인/가입,
+                    로그인 후: 하단 탭 홈·근무표·급여·소통·더보기 + 스택 화면)
+assets/fonts/       Pretendard OTF 6종 + LICENSE.txt (SIL OFL 1.1)
+src/home.tsx        GET /api/staff/home 공유 상태 (헤더·탭 배지·홈·근무표)
 src/api.ts          서버 API (Bearer 토큰, X-Lang 헤더, 401 → 로그아웃)
 src/storage.ts      SecureStore 저장 (token, serverUrl, lang, autoGeo, geoRegion)
 src/geofence.ts     자동 출퇴근: TaskManager 작업 + 지오펜스 등록/해제
 src/location.ts     현재 위치 (출퇴근 버튼·지오펜스 공용)
 src/session.tsx     로그인 상태, 언어, 서버 주소, 자동 출퇴근 설정
 src/i18n.ts         한국어/영어 문구, KST 시각 표시
-src/ui.tsx          버튼·입력칸·카드, 색상
+src/ui.tsx          디자인 토큰(시안 A), Pretendard Text 래퍼, 아이콘(SVG), 버튼·입력칸·섹션
 src/push.ts         푸시 토큰 등록 (POST /api/staff/push-token)
 src/attachments.ts  첨부 보기 (이미지: Bearer 헤더로 표시, PDF: 캐시에 받아 공유/열기)
 src/nav.ts          화면 목록(Params), navRef, 알림 종류 → 화면 매핑
 src/pay.ts          시급/월급 표시 문구
-src/screens/        Login, Signup, Home, Settings, Pin, Messages, Compose,
-                    Pay(내 급여), Document(명세서·계약서 보기), Contracts, Notifications(알림함)
+src/screens/        탭: Home, Schedule(근무표), Pay(급여), Messages(소통), More(더보기)
+                    스택: Compose, Document, Notifications(알림함), Pin, Contracts, NotifPrefs, Login, Signup
 ```
+
+## 디자인 (시안 A · 포털형)
+- 흰 배경, 1px 선(#e5e8ec), 카드 radius 6 / 버튼 radius 4, 그림자·그라데이션·이모지 없음.
+  색: 강조 #1a5fd6 · 근무 중 #0b7a3e · 퇴근 #c2410c · 휴식 #6b4fd8 · 배지 #d93025.
+- 상단 56px 헤더(ALBAGO 워드마크 + 매장명, 알림 종 + 배지), 하단 탭 5개(홈·근무표·급여·소통·더보기).
+- 글꼴은 **Pretendard** 하나. `expo-font` 플러그인으로 빌드에 포함되고(app.json), 실행 시에도 `useFonts` 로 불러온 뒤 스플래시를 닫습니다.
+  Android 는 사용자 글꼴의 굵기를 합성하지 않으므로 굵기마다 별도 패밀리(`Pretendard-Bold` 등)를 씁니다.
+  화면 코드에서는 react-native 의 `Text` 대신 `src/ui.tsx` 의 `Text` 를 쓰세요 — `fontWeight` 를 알맞은 Pretendard 패밀리로 바꿔 줍니다.
 
 ## 실행
 
@@ -73,7 +84,7 @@ Android 는 USB 연결 후 `npx expo run:android` 로 로컬 빌드도 가능합
 참고: OS 지오펜스는 수 분 늦게 오거나 실내에서 놓칠 수 있습니다. 출퇴근 버튼이 항상 기본 수단입니다.
 
 ## 소통(메시지)
-- 홈의 **소통 · 메시지** 버튼(안 읽은 수 배지 = `home.unread`) → 메시지 목록(최신순).
+- **소통 탭**(안 읽은 수 배지 = `home.unread`) → 메시지 목록(최신순).
   사장님 문서(공지·지시사항·경고·징계·해고 통보)는 정식 문서 카드로, 내가 보낸 글은 오른쪽 말풍선으로 보입니다.
 - `requiresAck` 문서는 **확인했습니다** 버튼 → 확인 대화상자("수령 확인이며 내용에 동의한다는 뜻은 아닙니다") → `POST /api/staff/messages/:id/ack`.
 - **쓰기**: 종류(메시지·건의·결근 사유서·근무 변경 요청), 제목(선택), 내용, 관련 근무일(선택), 사진 최대 3장(각 5MB, JPEG 로 base64 전송).
@@ -88,14 +99,14 @@ Android 는 USB 연결 후 `npx expo run:android` 로 로컬 빌드도 가능합
 - 알림을 누르면(`data.type === "message"`) 메시지 화면이 열립니다.
 
 ## 내 급여 · 임금명세서 · 근로계약서 · 알림함
-- **내 급여**(홈의 "내 급여" 타일 / 이번 달 카드): 시급·월급, 지급일, 월 선택, 지급·공제 항목, 실수령액.
+- **급여 탭**(홈의 "내역 ›"): 시급·월급, 지급일, 월 선택, 지급·공제 항목, 실수령액.
   `estimate: true` 면 "예상 금액" 배지, 확정 명세서가 있으면 "명세서 보기". 아래에 임금명세서 목록("새로 도착" = 아직 안 열어 봄).
 - **문서 보기**: 명세서·계약서 HTML 을 Bearer 로 받아 WebView(`react-native-webview`)에 표시,
   우측 상단 "PDF 저장·공유" = `expo-print` 로 PDF 생성 → 공유 시트.
-- **내 근로계약서**(설정): 목록, 열람, "받았습니다"(교부 확인 시각 기록).
-- **알림함**(홈 상단 🔔, 배지 = `home.notifUnread`): 누르면 읽음 처리 후 종류별 화면으로 이동, "모두 읽음".
+- **내 근로계약서**(더보기): 목록, 열람, "받았습니다"(교부 확인 시각 기록).
+- **알림함**(상단 종 아이콘, 배지 = `home.notifUnread`): 누르면 읽음 처리 후 종류별 화면으로 이동, "모두 읽음".
   푸시를 눌러도 같은 규칙으로 이동하고 `data.notificationId` 를 읽음 처리합니다.
-- **알림 설정**(설정): 근무 시작 전 알림(10/30/60분), 퇴근 미기록 알림, 근무표 변경 알림 → `/api/staff/prefs`.
+- **알림 설정**(더보기): 근무 시작 전 알림(10/30/60분), 퇴근 미기록 알림, 근무표 변경 알림 → `/api/staff/prefs`.
 
 ## 스토어 빌드·제출 (EAS)
 

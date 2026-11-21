@@ -32,10 +32,10 @@ export default function SignupScreen({ navigation }: { navigation: { goBack(): v
   if (done) {
     return (
       <View style={[s.screen, s.pad, { justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 26, fontWeight: '800', color: C.green, marginBottom: 12 }}>{t('signupDone')}</Text>
-        <Text style={{ fontSize: 17, color: C.text, lineHeight: 26, marginBottom: 12 }}>{done}</Text>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: C.green, marginBottom: 12, paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: C.text }}>{t('signupDone')}</Text>
+        <Text style={{ fontSize: 16, lineHeight: 24, marginBottom: 12 }}>{done}</Text>
         <Text style={[s.small, { marginBottom: 28 }]}>{t('pending')}</Text>
-        <Button title={t('back')} onPress={() => navigation.goBack()} />
+        <Button title={t('back')} onPress={() => navigation.goBack()} big />
       </View>
     );
   }
@@ -50,7 +50,7 @@ export default function SignupScreen({ navigation }: { navigation: { goBack(): v
         <Field label={t('passwordHint')} value={f.password} onChangeText={set('password')} secureTextEntry textContentType="newPassword" />
         <Text style={s.label}>{t('language')}</Text>
         <LangSwitch lang={myLang} onChange={setMyLang} />
-        <Button title={t('submit')} onPress={submit} busy={busy} style={{ marginTop: 24 }} />
+        <Button title={t('submit')} onPress={submit} busy={busy} big style={{ marginTop: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

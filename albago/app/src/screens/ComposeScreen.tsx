@@ -5,7 +5,7 @@ import { api, ApiError, type NewAttachment, type StaffKind } from '../api';
 import { formatSize } from '../attachments';
 import { kindLabel } from '../i18n';
 import { useSession } from '../session';
-import { Button, C, Field, s, Text, toast } from '../ui';
+import { Button, C, Chip, Field, s, Text, toast } from '../ui';
 
 const KINDS: StaffKind[] = ['general', 'suggestion', 'absence_reason', 'schedule_request'];
 const MAX_FILES = 3;
@@ -72,11 +72,7 @@ export default function ComposeScreen({ navigation }: { navigation: { goBack(): 
         <Text style={s.label}>{t('kind')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {KINDS.map((k) => (
-            <Pressable key={k} onPress={() => setKind(k)}
-              style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5,
-                borderColor: C.brand, backgroundColor: kind === k ? C.brand : '#fff' }}>
-              <Text style={{ color: kind === k ? '#fff' : C.brand, fontWeight: '600' }}>{kindLabel(k, t)}</Text>
-            </Pressable>
+            <Chip key={k} label={kindLabel(k, t)} on={kind === k} onPress={() => setKind(k)} />
           ))}
         </View>
         <Field label={t('titleOpt')} value={title} onChangeText={setTitle} autoCapitalize="sentences" />
@@ -89,7 +85,7 @@ export default function ComposeScreen({ navigation }: { navigation: { goBack(): 
         <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
           {files.map((f, i) => (
             <View key={f.uri + i} style={{ width: 96 }}>
-              <Image source={{ uri: f.uri }} style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: C.line }} />
+              <Image source={{ uri: f.uri }} style={{ width: 96, height: 96, borderRadius: 4, backgroundColor: C.line }} />
               <Text style={[s.small, { fontSize: 11 }]}>{formatSize(f.size)}</Text>
               <Pressable onPress={() => setFiles(files.filter((_, j) => j !== i))} hitSlop={6}>
                 <Text style={{ color: C.danger, fontWeight: '600' }}>{t('remove')}</Text>
@@ -97,15 +93,15 @@ export default function ComposeScreen({ navigation }: { navigation: { goBack(): 
             </View>
           ))}
           {files.length < MAX_FILES && (
-            <Pressable onPress={pick} style={{ width: 96, height: 96, borderRadius: 10, borderWidth: 1.5,
-              borderColor: C.brand, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: C.brand, fontWeight: '700' }}>{t('addPhoto')}</Text>
+            <Pressable onPress={pick} style={{ width: 96, height: 96, borderRadius: 4, borderWidth: 1,
+              borderColor: C.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: C.sub, fontWeight: '600' }}>{t('addPhoto')}</Text>
             </Pressable>
           )}
         </View>
 
         <Text style={[s.small, { marginBottom: 14, color: C.orange }]}>{t('composeNote')}</Text>
-        <Button title={t('send')} onPress={send} busy={busy} />
+        <Button title={t('send')} onPress={send} busy={busy} big />
       </ScrollView>
     </KeyboardAvoidingView>
   );
