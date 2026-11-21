@@ -128,6 +128,12 @@ test('전체 흐름', async () => {
   // 값이 빠진 요청은 500이 아니라 400 대 오류
   assert.equal((await call('POST', '/api/auth/otp', {})).status, 400);
   assert.equal((await call('POST', '/api/owner/records', { staffId: { x: 1 } })).status, 400);
+  // 정적 파일: 압축·ETag(304)·보안 헤더, 상위 폴더 접근 차단
+  const st1 = await fetch(base + '/owner', { headers: { 'Accept-Encoding': 'br' } });
+  assert.equal(st1.headers.get('content-encoding'), 'br');
+  assert.match(st1.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.equal((await fetch(base + '/owner', { headers: { 'If-None-Match': st1.headers.get('etag') } })).status, 304);
+  assert.equal((await fetch(base + '/%2e%2e/server.js')).status, 404);
   // 직원 토큰으로 사장님 API 불가
   assert.equal((await call('GET', '/api/owner/bootstrap', null, { token: tok })).status, 401);
 });

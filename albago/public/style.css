@@ -1,4 +1,3 @@
-@font-face{font-family:"Pretendard";src:url("/fonts/PretendardVariable.woff2") format("woff2-variations"),url("/fonts/PretendardVariable.woff2") format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
 /* ALBAGO 알바고 — 사장님: 업무 콘솔형(B), 알바: 포털형(A). 글꼴 Pretendard */
 :root{
   --font:Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;

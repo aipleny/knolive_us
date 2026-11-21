@@ -280,9 +280,20 @@ function payFor(store, staff, from, to) {
 }
 
 // ── 응답 도우미 ──
+// 압축: 브라우저가 지원하면 br(우선) 또는 gzip
+const zlib = require('zlib');
+const pickEncoding = req => { const a = String((req && req.headers['accept-encoding']) || ''); return /\bbr\b/.test(a) ? 'br' : /\bgzip\b/.test(a) ? 'gzip' : null; };
+const compress = (buf, enc, level = 'fast') => enc === 'br'
+  ? zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: level === 'fast' ? 5 : 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: buf.length } })
+  : zlib.gzipSync(buf, { level: level === 'fast' ? 6 : 9 });
 function send(res, code, obj, headers = {}) {
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
-  res.end(JSON.stringify(obj));
+  let body = Buffer.from(JSON.stringify(obj));
+  const h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding', ...headers };
+  const enc = body.length > 1400 ? pickEncoding(res.req) : null;
+  if (enc) { body = compress(body, enc); h['Content-Encoding'] = enc; }
+  h['Content-Length'] = body.length;
+  res.writeHead(code, h);
+  res.end(body);
 }
 function readBody(req, max = 2e6) {
   return new Promise((resolve, reject) => {
@@ -291,13 +302,36 @@ function readBody(req, max = 2e6) {
     req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks)) : {}); } catch { reject(new AppError(400, 'BAD_REQUEST')); } });
   });
 }
+const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cross-Origin-Opener-Policy': 'same-origin', ...(SECURE ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}) };
+const PAGE_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'",
+  'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()',
+};
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 const PAGES = { '/': 'index.html', '/login': 'login.html', '/signup': 'signup.html', '/owner': 'owner.html', '/kiosk': 'kiosk.html', '/staff': 'staff.html', '/join': 'join.html' };
+// 정적 파일: 메모리 캐시 + 미리 압축(br/gzip) + ETag(304). 글꼴은 1년 캐시.
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest', '.txt']);
+const staticCache = new Map();
+function staticEntry(file) {
+  const st = fs.statSync(file), hit = staticCache.get(file);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit;
+  const raw = fs.readFileSync(file), ext = path.extname(file);
+  const e = { mtimeMs: st.mtimeMs, size: st.size, raw, ext, etag: '"' + crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16) + '"' };
+  if (COMPRESSIBLE.has(ext) && raw.length > 512) { e.br = compress(raw, 'br', 'max'); e.gzip = compress(raw, 'gzip', 'max'); }
+  staticCache.set(file, e);
+  return e;
+}
 function serveStatic(req, res, p) {
   const file = path.normalize(path.join(PUBLIC, PAGES[p] || p));
-  if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': path.extname(file) === '.woff2' ? 'public, max-age=31536000, immutable' : 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' });
-  fs.createReadStream(file).pipe(res);
+  if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS }); return res.end('Not found'); }
+  const e = staticEntry(file);
+  const headers = { 'Content-Type': MIME[e.ext] || 'application/octet-stream', 'Cache-Control': e.ext === '.woff2' ? 'public, max-age=31536000, immutable' : 'no-cache', ETag: e.etag, Vary: 'Accept-Encoding', ...SECURITY_HEADERS, ...(e.ext === '.html' ? PAGE_HEADERS : {}) };
+  if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, headers); return res.end(); }
+  const enc = e.br ? pickEncoding(req) : null, body = enc ? e[enc] : e.raw;
+  if (enc) headers['Content-Encoding'] = enc;
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 const routes = [];
 const route = (method, pattern, auth, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), auth, fn, ...opts });

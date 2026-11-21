@@ -1,6 +1,6 @@
 // 화면 파일만 캐시. 출퇴근 데이터(/api)는 항상 서버에서.
-const CACHE = 'albago-v1';
-const SHELL = ['/staff', '/style.css', '/common.js', '/i18n.js', '/staff.js', '/icon.svg'];
+const CACHE = 'albago-v2';
+const SHELL = ['/staff', '/fonts/pretendard.css', '/style.css', '/common.js', '/i18n.js', '/staff.js', '/icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {
