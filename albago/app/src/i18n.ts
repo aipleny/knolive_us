@@ -159,6 +159,23 @@ const ko = {
   outReminderHint: '근무 종료 30분 후에도 퇴근 기록이 없으면 알려 드려요.',
   scheduleChange: '근무표 변경 알림',
   minutes: '{n}분',
+  // design A (v4)
+  tabHome: '홈', tabSchedule: '근무표', tabPay: '급여', tabMessages: '소통', tabMore: '더보기',
+  viewAll: '전체', details: '내역',
+  thisWeek: '이번 주 근무',
+  monthPayTitle: '{m}월 급여',
+  estimateShort: '예상',
+  dayOff: '휴무',
+  todayShiftLine: '오늘 근무 {s}',
+  todayOff: '오늘 근무 없음',
+  inAt: '{t} 출근', breakAt: '{t} 휴식', outAt: '{t} 퇴근',
+  workingNow: '근무 중', onBreak: '휴식 중', notYet: '출근 전', doneToday: '근무 끝',
+  autoOnLine: '자동 출퇴근 켜짐 · 매장 {r}m 안',
+  autoOffLine: '자동 출퇴근 꺼짐',
+  rateHours: '{rate} · {h}시간',
+  pinMenu: '기록부 PIN',
+  n_message: '메시지', n_payslip: '임금명세서', n_contract: '근로계약서',
+  n_schedule: '근무표 변경', n_shift_soon: '근무 알림', n_no_out: '퇴근 미기록',
 };
 type Dict = typeof ko;
 
@@ -315,6 +332,22 @@ const en: Dict = {
   outReminderHint: 'Alerts you if there is no clock-out 30 minutes after your shift ends.',
   scheduleChange: 'Schedule change alerts',
   minutes: '{n} min',
+  tabHome: 'Home', tabSchedule: 'Schedule', tabPay: 'Pay', tabMessages: 'Messages', tabMore: 'More',
+  viewAll: 'All', details: 'Details',
+  thisWeek: 'This week',
+  monthPayTitle: '{m} pay',
+  estimateShort: 'estimate',
+  dayOff: 'Off',
+  todayShiftLine: 'Today {s}',
+  todayOff: 'No shift today',
+  inAt: 'In {t}', breakAt: 'Break {t}', outAt: 'Out {t}',
+  workingNow: 'Working', onBreak: 'On break', notYet: 'Not clocked in', doneToday: 'Done',
+  autoOnLine: 'Auto attendance on · within {r}m of store',
+  autoOffLine: 'Auto attendance off',
+  rateHours: '{rate} · {h}h',
+  pinMenu: 'Check-in PIN',
+  n_message: 'Message', n_payslip: 'Pay statement', n_contract: 'Contract',
+  n_schedule: 'Schedule change', n_shift_soon: 'Shift reminder', n_no_out: 'Missing clock-out',
 };
 
 export type TKey = keyof Dict;
@@ -328,7 +361,7 @@ export function deviceLang(): Lang {
 
 export function makeT(lang: Lang): T {
   return (key, vars) =>
-    dicts[lang][key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? ''));
+    (dicts[lang][key] ?? String(key)).replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? ''));
 }
 
 // ---- formatting (server times are UTC ISO; display in KST, UTC+9, no DST) ----
@@ -363,6 +396,20 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 export function monthName(ym: string, lang: Lang): string {
   const [y, m] = ym.split('-').map(Number);
   return lang === 'ko' ? `${y}년 ${m}월` : `${MON[m - 1]} ${y}`;
+}
+
+/** "2026-11-20" -> "11월 20일 (금)" / "Fri, Nov 20" */
+export function longDay(date: string, lang: Lang): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  return lang === 'ko'
+    ? `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WD.ko[d.getUTCDay()]})`
+    : `${WD.en[d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+/** "2026-11-01" -> "11" (ko) / "Nov" (en), for "{m}월 급여" */
+export function shortMonth(date: string, lang: Lang): string {
+  const m = Number(date.slice(5, 7));
+  return lang === 'ko' ? String(m) : MON[m - 1];
 }
 
 export function money(n: number, t: T): string {

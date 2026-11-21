@@ -1,11 +1,11 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { api, ApiError, type NewAttachment, type StaffKind } from '../api';
 import { formatSize } from '../attachments';
 import { kindLabel } from '../i18n';
 import { useSession } from '../session';
-import { Button, C, Field, s, toast } from '../ui';
+import { Button, C, Field, s, Text, toast } from '../ui';
 
 const KINDS: StaffKind[] = ['general', 'suggestion', 'absence_reason', 'schedule_request'];
 const MAX_FILES = 3;

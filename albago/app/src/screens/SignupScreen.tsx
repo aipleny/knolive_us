@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { api, ApiError, type Lang } from '../api';
 import { useSession } from '../session';
-import { Button, C, Field, LangSwitch, s } from '../ui';
+import { Button, C, Field, LangSwitch, s, Text } from '../ui';
 
 export default function SignupScreen({ navigation }: { navigation: { goBack(): void } }) {
   const { t, lang } = useSession();

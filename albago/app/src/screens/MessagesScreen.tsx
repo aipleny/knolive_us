@@ -1,23 +1,22 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useLayoutEffect, useState } from 'react';
-import {
-  ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, Text, View, type ImageURISource,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, View, type ImageURISource } from 'react-native';
 import { api, ApiError, type Attachment, type Message } from '../api';
 import { formatSize, imageSource, isImage, openFile } from '../attachments';
 import { dateTime, kindLabel } from '../i18n';
+import { useHome } from '../home';
+import type { TabProps } from '../nav';
 import { useSession } from '../session';
-import { Button, C, s } from '../ui';
+import { Button, C, Icon, s, Tag, Text } from '../ui';
 
 const DOC_KINDS = new Set(['notice', 'instruction', 'warning', 'discipline', 'dismissal']);
 const KIND_COLOR: Record<string, string> = {
   notice: C.brand, instruction: C.brand, warning: C.orange, discipline: C.danger, dismissal: C.danger,
 };
 
-type Nav = { navigate(name: 'Compose'): void; setOptions(o: object): void };
-
-export default function MessagesScreen({ navigation }: { navigation: Nav }) {
+export default function MessagesScreen({ navigation }: TabProps<'Messages'>) {
   const { t } = useSession();
+  const { refresh: refreshHome } = useHome();
   const [items, setItems] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,21 +28,12 @@ export default function MessagesScreen({ navigation }: { navigation: Nav }) {
       const res = await api.messages();
       setItems(res.items);
       setError(null);
+      refreshHome(); // GET marks messages read → update the tab badge
     } catch (e) {
       setError((e as ApiError).message);
     }
-  }, []);
+  }, [refreshHome]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <Pressable onPress={() => navigation.navigate('Compose')} hitSlop={12}>
-          <Text style={{ color: C.brand, fontSize: 16, fontWeight: '700' }}>{t('write')}</Text>
-        </Pressable>
-      ),
-    });
-  }, [navigation, t]);
 
   function ack(m: Message) {
     Alert.alert(t('ackTitle'), t('ackMsg'), [
@@ -78,7 +68,7 @@ export default function MessagesScreen({ navigation }: { navigation: Nav }) {
     return (
       <View style={[s.screen, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
         {error ? <>
-          <Text style={{ color: C.danger, fontSize: 16, marginBottom: 16, textAlign: 'center' }}>{error}</Text>
+          <Text style={{ color: C.danger, fontSize: 15, marginBottom: 16, textAlign: 'center' }}>{error}</Text>
           <Button title={t('retry')} onPress={load} style={{ alignSelf: 'stretch' }} />
         </> : <ActivityIndicator size="large" color={C.brand} />}
       </View>
@@ -95,8 +85,14 @@ export default function MessagesScreen({ navigation }: { navigation: Nav }) {
         refreshControl={<RefreshControl refreshing={refreshing}
           onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
         ListHeaderComponent={<>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            borderBottomWidth: 2, borderBottomColor: C.text, paddingBottom: 8, marginBottom: 10 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800' }}>{t('messages')}</Text>
+            <Button title={t('write')} onPress={() => navigation.navigate('Compose')}
+              style={{ height: 34, paddingHorizontal: 14 }} />
+          </View>
           {error ? <Text style={{ color: C.danger, marginBottom: 10 }}>{error}</Text> : null}
-          <Text style={[s.small, { marginBottom: 12 }]}>{t('recordNote')}</Text>
+          <Text style={[s.small, { fontSize: 12, marginBottom: 12 }]}>{t('recordNote')}</Text>
         </>}
         ListEmptyComponent={<Text style={[s.small, { textAlign: 'center', marginTop: 40 }]}>{t('noMessages')}</Text>}
         renderItem={({ item: m }) => (
@@ -106,7 +102,7 @@ export default function MessagesScreen({ navigation }: { navigation: Nav }) {
       <Modal visible={!!viewer} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' }} onPress={() => setViewer(null)}>
           {viewer ? <Image source={viewer} style={{ width: '100%', height: '80%' }} resizeMode="contain" /> : null}
-          <Text style={{ color: '#fff', textAlign: 'center', fontSize: 17, padding: 20 }}>{t('close')}</Text>
+          <Text style={{ color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: '600', padding: 20 }}>{t('close')}</Text>
         </Pressable>
       </Modal>
     </>
@@ -125,21 +121,19 @@ function MessageItem({ m, onAck, acking, onOpen }: {
   const body = (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-        <Text style={{ color: doc ? '#fff' : color, backgroundColor: doc ? color : undefined, fontWeight: '800',
-          fontSize: 13, paddingHorizontal: doc ? 8 : 0, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' }}>
-          {kindLabel(m.kind, t)}
-        </Text>
-        <Text style={s.small}>{mine ? t('sent') : t('fromOwner')} · {dateTime(m.createdAt)}</Text>
+        <Tag label={kindLabel(m.kind, t)} color={color} solid={doc} />
+        <Text style={{ fontSize: 12, color: C.sub }}>{mine ? t('sent') : t('fromOwner')} · {dateTime(m.createdAt)}</Text>
       </View>
-      {m.title ? <Text style={{ fontSize: doc ? 18 : 16, fontWeight: '700', color: C.text, marginBottom: 6 }}>{m.title}</Text> : null}
-      <Text style={{ fontSize: 15, color: C.text, lineHeight: 22 }}>{m.body}</Text>
+      {m.title ? <Text style={{ fontSize: doc ? 17 : 15, fontWeight: '700', marginBottom: 4 }}>{m.title}</Text> : null}
+      <Text style={{ fontSize: 14, lineHeight: 21 }}>{m.body}</Text>
       {m.date ? <Text style={[s.small, { marginTop: 8 }]}>{t('relatedDate')}: {m.date}</Text> : null}
       {m.attachments.map((a) => (
         <Pressable key={a.id} onPress={() => onOpen(a)} hitSlop={4}
-          style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.line, backgroundColor: '#fff' }}>
-          <Text style={{ color: C.brand, fontWeight: '600' }} numberOfLines={1}>
-            {isImage(a) ? '🖼' : '📄'} {a.name} <Text style={s.small}>({formatSize(a.size)})</Text>
-          </Text>
+          style={{ marginTop: 8, paddingHorizontal: 10, minHeight: 40, borderRadius: 4, borderWidth: 1, borderColor: C.line,
+            backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Icon name={isImage(a) ? 'image' : 'doc'} size={18} color={C.brand} />
+          <Text style={{ color: C.brand, fontWeight: '600', fontSize: 13, flex: 1 }} numberOfLines={1}>{a.name}</Text>
+          <Text style={{ fontSize: 12, color: C.sub }}>{formatSize(a.size)}</Text>
         </Pressable>
       ))}
       {!mine && (
@@ -157,14 +151,14 @@ function MessageItem({ m, onAck, acking, onOpen }: {
 
   if (mine) {
     return (
-      <View style={{ alignSelf: 'flex-end', maxWidth: '88%', backgroundColor: '#e7eefc', borderRadius: 16,
-        borderBottomRightRadius: 4, padding: 14, marginBottom: 12 }}>{body}</View>
+      <View style={{ alignSelf: 'flex-end', maxWidth: '88%', backgroundColor: C.tint, borderRadius: 6,
+        borderWidth: 1, borderColor: '#d6e2f7', padding: 14, marginBottom: 12 }}>{body}</View>
     );
   }
   return (
-    <View style={[{ backgroundColor: C.card, borderRadius: doc ? 8 : 16, padding: 16, marginBottom: 12 },
-      doc ? { borderLeftWidth: 5, borderLeftColor: color } : { alignSelf: 'flex-start', maxWidth: '88%', borderBottomLeftRadius: 4 },
-      needsAck && { borderWidth: 2, borderColor: color, borderLeftWidth: 5 }]}>
+    <View style={[{ backgroundColor: '#fff', borderRadius: 6, borderWidth: 1, borderColor: needsAck ? color : C.line,
+      padding: 16, marginBottom: 12 },
+      doc ? { borderLeftWidth: 3, borderLeftColor: color } : { alignSelf: 'flex-start', maxWidth: '88%' }]}>
       {body}
     </View>
   );

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Alert, ScrollView, Text } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import { api, ApiError } from '../api';
 import { useSession } from '../session';
-import { Button, Field, s, toast } from '../ui';
+import { Button, Field, s, Text, toast } from '../ui';
 
 export default function PinScreen({ navigation }: { navigation: { goBack(): void } }) {
   const { t } = useSession();

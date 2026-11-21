@@ -1,14 +1,14 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { api, ApiError, type PayData, type PayLine, type Payslip } from '../api';
 import { duration, money, monthName } from '../i18n';
-import type { ScreenProps } from '../nav';
+import type { TabProps } from '../nav';
 import { rateText } from '../pay';
 import { useSession } from '../session';
-import { Button, C, Card, s } from '../ui';
+import { Button, C, Card, Chip, Icon, s, Section, Tag, Text } from '../ui';
 
-export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
+export default function PayScreen({ navigation }: TabProps<'Pay'>) {
   const { t, lang } = useSession();
   const [months, setMonths] = useState<string[]>([]);
   const [month, setMonth] = useState<string | undefined>(undefined); // undefined = server's current month
@@ -49,7 +49,7 @@ export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
       }} />}>
       {pay && (
         <View style={{ marginBottom: 14 }}>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: C.text }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', letterSpacing: -0.4 }}>
             {rateText(t, pay.payType, pay.hourlyWage, pay.monthlySalary, pay.ordinaryRate)}
           </Text>
           <Text style={[s.small, { fontSize: 15, marginTop: 2 }]}>{t('payDay', { d: pay.payDay })}</Text>
@@ -60,11 +60,7 @@ export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}
           contentContainerStyle={{ gap: 8 }}>
           {months.map((m) => (
-            <Pressable key={m} onPress={() => setMonth(m)} hitSlop={4}
-              style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.brand,
-                backgroundColor: selected === m ? C.brand : '#fff' }}>
-              <Text style={{ color: selected === m ? '#fff' : C.brand, fontWeight: '700' }}>{monthName(m, lang)}</Text>
-            </Pressable>
+            <Chip key={m} label={monthName(m, lang)} on={selected === m} onPress={() => setMonth(m)} />
           ))}
         </ScrollView>
       )}
@@ -81,17 +77,14 @@ export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
         <View style={{ opacity: loading ? 0.5 : 1 }}>
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{monthName(pay.month, lang)}</Text>
-              {pay.estimate ? (
-                <Text style={{ backgroundColor: C.amber, color: '#fff', fontWeight: '800', fontSize: 13, paddingHorizontal: 8,
-                  paddingVertical: 3, borderRadius: 6, overflow: 'hidden' }}>{t('estimate')}</Text>
-              ) : null}
+              <Text style={{ fontSize: 17, fontWeight: '800' }}>{monthName(pay.month, lang)}</Text>
+              {pay.estimate ? <Tag label={t('estimate')} color={C.amber} solid /> : null}
             </View>
             <Text style={[s.small, { marginTop: 2 }]}>
               {pay.from} ~ {pay.to} · {t('workedDays', { d: pay.days, h: duration(pay.workedMin, t) })}
             </Text>
 
-            <Text style={[s.label, { marginTop: 16 }]}>{t('payItems')}</Text>
+            <Text style={[s.label, { marginTop: 16, marginBottom: 2 }]}>{t('payItems')}</Text>
             {pay.items.map((it) => <Line key={it.key} line={it} />)}
             <Total label={t('grossTotal')} amount={money(pay.gross, t)} />
 
@@ -101,9 +94,10 @@ export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
               <Total label={t('deductionTotal')} amount={`-${money(pay.deductionTotal, t)}`} />
             </>}
 
-            <View style={{ marginTop: 16, padding: 16, borderRadius: 12, backgroundColor: '#e7eefc' }}>
-              <Text style={{ color: C.sub, fontWeight: '700' }}>{t('netPay')}</Text>
-              <Text style={{ fontSize: 32, fontWeight: '900', color: C.brand, marginTop: 2 }}>{money(pay.net, t)}</Text>
+            <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 2, borderTopColor: C.text,
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <Text style={{ fontSize: 15, fontWeight: '800' }}>{t('netPay')}</Text>
+              <Text style={{ fontSize: 28, fontWeight: '800', color: C.brand, letterSpacing: -0.5 }}>{money(pay.net, t)}</Text>
             </View>
             {pay.estimate ? <Text style={[s.small, { marginTop: 10 }]}>{t('estimateNote')}</Text> : null}
             {pay.payslipId ? (
@@ -114,27 +108,24 @@ export default function PayScreen({ navigation }: ScreenProps<'Pay'>) {
         </View>
       )}
 
-      <Card title={t('payslips')}>
-        {slips.length === 0 ? <Text style={s.small}>{t('noPayslips')}</Text> : null}
+      <Section title={t('payslips')}>
+        {slips.length === 0 ? <Text style={[s.small, { paddingVertical: 12 }]}>{t('noPayslips')}</Text> : null}
         {slips.map((p) => (
           <Pressable key={p.id} accessibilityRole="button" onPress={() => openSlip(p.id, `${t('payslip')} ${p.from} ~ ${p.to}`)}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, minHeight: 56,
-              borderBottomWidth: 1, borderBottomColor: C.line, opacity: pressed ? 0.6 : 1 })}>
+              borderBottomWidth: 1, borderBottomColor: C.line2, opacity: pressed ? 0.6 : 1 })}>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>{p.from} ~ {p.to}</Text>
-                {!p.viewedAt ? (
-                  <Text style={{ backgroundColor: C.danger, color: '#fff', fontSize: 11, fontWeight: '800', paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 5, overflow: 'hidden' }}>{t('newBadge')}</Text>
-                ) : null}
+                {!p.viewedAt ? <Tag label={t('newBadge')} color={C.danger} solid /> : null}
               </View>
               <Text style={s.small}>{t('payDate', { d: p.payDate })}</Text>
             </View>
             <Text style={{ fontSize: 16, fontWeight: '800', color: C.text, marginRight: 6 }}>{money(p.net, t)}</Text>
-            <Text style={{ color: C.sub, fontSize: 20 }}>›</Text>
+            <Icon name="chevron" size={16} color={C.sub} />
           </Pressable>
         ))}
-      </Card>
+      </Section>
     </ScrollView>
   );
 }
@@ -144,10 +135,10 @@ function Line({ line, minus }: { line: PayLine; minus?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, gap: 12 }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, color: C.text }}>{line.label}</Text>
-        {line.calc ? <Text style={[s.small, { fontSize: 12, color: '#8a93a6' }]}>{line.calc}</Text> : null}
+        <Text style={{ fontSize: 14 }}>{line.label}</Text>
+        {line.calc ? <Text style={{ fontSize: 12, color: '#8b929c' }}>{line.calc}</Text> : null}
       </View>
-      <Text style={{ fontSize: 15, color: C.text }}>{minus ? '-' : ''}{money(line.amount, t)}</Text>
+      <Text style={{ fontSize: 14 }}>{minus ? '-' : ''}{money(line.amount, t)}</Text>
     </View>
   );
 }

@@ -1,59 +1,21 @@
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
-import { api, ApiError, type HomeData, type PunchAction, type Shift } from '../api';
-import { dayLabel, duration, hhmm, money } from '../i18n';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, View } from 'react-native';
+import { api, ApiError, type PunchAction, type Shift } from '../api';
+import { dayLabel, hhmm, longDay, money, shortMonth } from '../i18n';
 import { currentCoords } from '../location';
-import type { ScreenProps } from '../nav';
+import type { TabProps } from '../nav';
 import { rateText } from '../pay';
+import { useHome } from '../home';
 import { useSession } from '../session';
-import { Button, C, Card, Row, s, toast } from '../ui';
+import { Button, C, s, Section, Text, toast } from '../ui';
 
-export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
-  const { t, lang, syncGeo } = useSession();
-  const [data, setData] = useState<HomeData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export const shiftRange = (sh: Shift) => `${sh.start} ~ ${sh.end}`;
+
+export default function HomeScreen({ navigation }: TabProps<'Home'>) {
+  const { t, lang, autoGeo } = useSession();
+  const { data, error, refresh } = useHome();
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState<PunchAction | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const d = await api.home();
-      setData(d);
-      setError(null);
-      syncGeo(d.store);
-    } catch (e) {
-      setError((e as ApiError).message);
-    }
-  }, [syncGeo]);
-
-  // Reload when the screen gains focus (e.g. back from Messages → unread badge) and on language change.
-  useFocusEffect(useCallback(() => { load(); }, [load, lang]));
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') load(); });
-    return () => sub.remove();
-  }, [load]);
-
-  const notifUnread = data?.notifUnread ?? 0;
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: t('appName'),
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Pressable onPress={() => navigation.navigate('Notifications')} hitSlop={10}
-            accessibilityRole="button" accessibilityLabel={t('notifications')}>
-            <Text style={{ fontSize: 22 }}>🔔</Text>
-            {notifUnread ? <Badge n={notifUnread} style={{ position: 'absolute', top: -6, right: -10 }} /> : null}
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={10}>
-            <Text style={{ color: C.brand, fontSize: 16, fontWeight: '600' }}>{t('settings')}</Text>
-          </Pressable>
-        </View>
-      ),
-    });
-  }, [navigation, t, notifUnread]);
-
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   async function punch(action: PunchAction) {
     if (action === 'out') {
@@ -65,10 +27,9 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
     }
     setBusy(action);
     try {
-      const coords = await currentCoords(true);
-      const res = await api.punch(action, coords);
+      const res = await api.punch(action, await currentCoords(true));
       toast(res.message);
-      await load();
+      await refresh();
     } catch (e) {
       Alert.alert(t('error'), (e as ApiError).message);
     } finally {
@@ -79,129 +40,82 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   if (!data) {
     return (
       <View style={[s.screen, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
-        {error ? (
-          <>
-            <Text style={{ color: C.danger, fontSize: 16, marginBottom: 16, textAlign: 'center' }}>{error}</Text>
-            <Button title={t('retry')} onPress={load} style={{ alignSelf: 'stretch' }} />
-          </>
-        ) : <ActivityIndicator size="large" color={C.brand} />}
+        {error ? <>
+          <Text style={{ color: C.danger, fontSize: 15, marginBottom: 16, textAlign: 'center' }}>{error}</Text>
+          <Button title={t('retry')} onPress={() => refresh()} style={{ alignSelf: 'stretch' }} />
+        </> : <ActivityIndicator size="large" color={C.brand} />}
       </View>
     );
   }
 
-  const { status, today, month } = data;
-  const statusText = status === 'in' ? t('statusIn', { t: hhmm(data.since) })
-    : status === 'break' ? t('statusBreak', { t: hhmm(data.breakSince) }) : t('statusOff');
-  const statusColor = status === 'in' ? C.green : status === 'break' ? C.amber : C.sub;
-  const buttons: { action: PunchAction; title: string; color: string }[] =
-    status === 'off' ? [{ action: 'in', title: t('clockIn'), color: C.green }]
-    : status === 'in' ? [
-      { action: 'break_start', title: t('breakStart'), color: C.brand },
-      { action: 'out', title: t('clockOut'), color: C.orange },
-    ] : [{ action: 'break_end', title: t('breakEnd'), color: C.brand }];
+  const { status, today, month, store } = data;
+  const todayRec = data.records.find((r) => r.date === today.date && r.out);
+  const [lead, state, stateColor] =
+    status === 'in' ? [t('inAt', { t: hhmm(data.since) }), t('workingNow'), C.green]
+    : status === 'break' ? [t('breakAt', { t: hhmm(data.breakSince) }), t('onBreak'), C.purple]
+    : todayRec ? [t('outAt', { t: hhmm(todayRec.out) }), t('doneToday'), C.orange]
+    : ['', t('notYet'), C.sub];
+  const geoCapable = store.autoGeo && store.lat != null && store.lng != null;
+  const week = data.shifts.filter((d) => d.date > today.date).slice(0, 3);
+  const b = (action: PunchAction) => ({ busy: busy === action, disabled: !!busy, onPress: () => punch(action), big: true });
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={s.pad}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-      {error ? <Text style={{ color: C.danger, marginBottom: 10 }}>{error}</Text> : null}
+      refreshControl={<RefreshControl refreshing={refreshing}
+        onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}>
+      {error ? <Text style={{ color: C.danger, marginBottom: 10, fontSize: 13 }}>{error}</Text> : null}
 
-      <Card>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 2 }}>{data.store.name}</Text>
-        <Text style={s.small}>{dayLabel(today.date, lang)} · {data.me.name}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: statusColor, marginRight: 8 }} />
-          <Text style={{ fontSize: 22, fontWeight: '800', color: statusColor }}>{statusText}</Text>
-        </View>
-        <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 }}>
-          <Text style={s.label}>{t('todayShift')}</Text>
-          <ShiftText shift={today.shift} big />
-        </View>
-      </Card>
-
-      <View style={{ gap: 12, marginBottom: 18 }}>
-        {buttons.map((b) => (
-          <Button key={b.action} big title={b.title} color={b.color} busy={busy === b.action}
-            disabled={!!busy} onPress={() => punch(b.action)} />
-        ))}
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
-        <Tile icon="✉" label={t('messagesBtn')} badge={data.unread} onPress={() => navigation.navigate('Messages')} />
-        <Tile icon="💰" label={t('myPay')} onPress={() => navigation.navigate('Pay')} />
-      </View>
-
-      <Pressable onPress={() => navigation.navigate('Pay')} accessibilityRole="button"
-        style={({ pressed }) => [s.card, { opacity: pressed ? 0.7 : 1 }]}>
-        <Text style={s.cardTitle}>{t('thisMonth')}</Text>
-        {data.me.payType ? (
-          <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 4 }}>
-            {rateText(t, data.me.payType, data.me.hourlyWage, data.me.monthlySalary)}
+      <View style={[s.card, { paddingVertical: 18 }]}>
+        <Text style={{ fontSize: 13, color: C.sub }}>
+          {longDay(today.date, lang)} · {today.shift ? t('todayShiftLine', { s: shiftRange(today.shift) }) : t('todayOff')}
+        </Text>
+        {today.shift?.breaks?.length ? (
+          <Text style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>
+            {t('breakLabel')} {today.shift.breaks.map((x) => `${x.start}~${x.end}`).join(', ')}
           </Text>
         ) : null}
-        <Row left={t('worked')} right={duration(month.workedMin, t)} />
-        <Row left={t('gross')} right={money(month.gross, t)} />
-        <Row left={t('holidayPay')} right={money(month.holidayPay, t)} />
-        <Row left={t('net')} right={money(month.net, t)} strong />
-        <Text style={[s.link, { textAlign: 'right', paddingHorizontal: 0, paddingBottom: 0 }]}>{t('viewMyPay')} ›</Text>
-      </Pressable>
+        <Text style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 6, marginBottom: 14 }}>
+          {lead ? `${lead} · ` : ''}<Text style={{ fontSize: 22, fontWeight: '800', color: stateColor }}>{state}</Text>
+        </Text>
+        {status === 'off' ? (
+          <Button title={t('clockIn')} color={C.brand} {...b('in')} />
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {status === 'in'
+              ? <Button title={t('breakStart')} outline {...b('break_start')} style={{ flex: 1 }} />
+              : <Button title={t('breakEnd')} outline textColor={C.purple} {...b('break_end')} style={{ flex: 1 }} />}
+            <Button title={t('clockOut')} color={C.orange} {...b('out')} style={{ flex: 1 }} />
+          </View>
+        )}
+        {geoCapable ? (
+          <Text style={{ fontSize: 12, color: C.sub, marginTop: 10 }}>
+            {autoGeo ? t('autoOnLine', { r: Math.max(store.radius || 0, 100) }) : t('autoOffLine')}
+          </Text>
+        ) : null}
+      </View>
 
-      <Card title={t('next14')}>
-        {data.shifts.slice(0, 14).map((d) => (
-          <View key={d.date} style={[s.row, { borderBottomWidth: 1, borderBottomColor: C.line }]}>
-            <Text style={[s.rowL, d.date === today.date && s.strong]}>{dayLabel(d.date, lang)}</Text>
-            <ShiftText shift={d.shift} />
+      <Section title={t('thisWeek')} link={t('viewAll')} onLink={() => navigation.navigate('Schedule')}>
+        {week.map((d) => (
+          <View key={d.date} style={s.row}>
+            <Text style={s.rowL}>{dayLabel(d.date, lang)}</Text>
+            <Text style={[s.rowR, !d.shift && { color: C.sub }]}>{d.shift ? shiftRange(d.shift) : t('dayOff')}</Text>
           </View>
         ))}
-      </Card>
+      </Section>
 
-      <Card title={t('records')}>
-        {data.records.length === 0 ? <Text style={s.small}>{t('noRecords')}</Text> : null}
-        {data.records.map((r, i) => (
-          <View key={`${r.date}-${i}`} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.line }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={s.rowL}>{dayLabel(r.date, lang)}</Text>
-              <Text style={s.rowR}>{hhmm(r.in)} – {r.out ? hhmm(r.out) : t('working')}</Text>
-            </View>
-            {r.breaks.length > 0 && (
-              <Text style={[s.small, { textAlign: 'right' }]}>
-                {t('breakLabel')} {r.breaks.map((b) => `${hhmm(b.start)}–${b.end ? hhmm(b.end) : ''}`).join(', ')}
-              </Text>
-            )}
-          </View>
-        ))}
-      </Card>
+      <Section title={t('monthPayTitle', { m: shortMonth(month.from, lang) })} sub={t('estimateShort')}
+        link={t('details')} onLink={() => navigation.navigate('Pay')}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
+          paddingTop: 12, paddingHorizontal: 2, paddingBottom: 4, gap: 8 }}>
+          <Text style={{ fontSize: 13, color: C.sub, flexShrink: 1 }}>
+            {t('rateHours', {
+              rate: rateText(t, data.me.payType, data.me.hourlyWage, data.me.monthlySalary) || t('worked'),
+              h: Math.round(month.workedMin / 6) / 10,
+            })}
+          </Text>
+          <Text style={{ fontSize: 22, fontWeight: '700' }}>{money(month.net, t)}</Text>
+        </View>
+      </Section>
     </ScrollView>
-  );
-}
-
-function Badge({ n, style }: { n: number; style?: object }) {
-  return (
-    <View style={[{ minWidth: 22, height: 22, borderRadius: 11, backgroundColor: C.danger, alignItems: 'center',
-      justifyContent: 'center', paddingHorizontal: 6 }, style]}>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{n > 99 ? '99+' : n}</Text>
-    </View>
-  );
-}
-
-function Tile({ icon, label, badge, onPress }: { icon: string; label: string; badge?: number; onPress(): void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button"
-      style={({ pressed }) => [s.card, { flex: 1, marginBottom: 0, minHeight: 84, justifyContent: 'center', opacity: pressed ? 0.7 : 1 }]}>
-      <Text style={{ fontSize: 24 }}>{icon}</Text>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginTop: 4 }}>{label}</Text>
-      {badge ? <Badge n={badge} style={{ position: 'absolute', top: 10, right: 10 }} /> : null}
-    </Pressable>
-  );
-}
-
-function ShiftText({ shift, big }: { shift: Shift | null; big?: boolean }) {
-  const { t } = useSession();
-  if (!shift) return <Text style={[s.rowR, { color: C.sub }]}>{t('noShift')}</Text>;
-  const breaks = (shift.breaks ?? []).map((b) => `${b.start}–${b.end}`).join(', ');
-  return (
-    <View style={{ alignItems: big ? 'flex-start' : 'flex-end' }}>
-      <Text style={big ? { fontSize: 20, fontWeight: '700', color: C.text } : s.rowR}>{shift.start} – {shift.end}</Text>
-      {breaks ? <Text style={s.small}>{t('breakLabel')} {breaks}</Text> : null}
-    </View>
   );
 }

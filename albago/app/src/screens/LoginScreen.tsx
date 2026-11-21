@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { useSession } from '../session';
 import { normalizeServerUrl } from '../storage';
-import { Button, C, Field, LangSwitch, s, toast } from '../ui';
+import { Button, C, Field, LangSwitch, s, Text, toast } from '../ui';
 
 export default function LoginScreen({ navigation }: { navigation: { navigate(name: 'Signup'): void } }) {
   const { t, lang, setLang, serverUrl, setServerUrl, signIn } = useSession();
@@ -42,10 +42,14 @@ export default function LoginScreen({ navigation }: { navigation: { navigate(nam
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={[s.pad, { paddingTop: 72 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.pad, { paddingTop: 64 }]} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: 'flex-end' }}><LangSwitch lang={lang} onChange={setLang} /></View>
-        <Text style={{ fontSize: 34, fontWeight: '800', color: C.brand, marginTop: 24 }}>{t('appName')}</Text>
-        <Text style={[s.small, { marginBottom: 28, fontSize: 15 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 28 }}>
+          <Text style={{ fontSize: 32, fontWeight: '900', letterSpacing: -1, color: C.brand }}>ALBAGO</Text>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: C.sub }}>알바고</Text>
+        </View>
+        <Text style={{ fontSize: 14, color: C.sub, marginTop: 4, marginBottom: 20, paddingBottom: 14,
+          borderBottomWidth: 2, borderBottomColor: C.text }}>
           {lang === 'ko' ? '알바 출퇴근을 간편하게' : 'Simple staff attendance'}
         </Text>
 
@@ -54,11 +58,11 @@ export default function LoginScreen({ navigation }: { navigation: { navigate(nam
         <Field label={t('loginId')} value={loginId} onChangeText={setLoginId} textContentType="username" />
         <Field label={t('password')} value={password} onChangeText={setPassword} secureTextEntry
           textContentType="password" onSubmitEditing={login} returnKeyType="go" />
-        <Button title={t('login')} onPress={login} busy={busy} style={{ marginTop: 6 }} />
-        <Button title={t('signup')} onPress={() => navigation.navigate('Signup')} outline style={{ marginTop: 12 }} />
+        <Button title={t('login')} onPress={login} busy={busy} big style={{ marginTop: 6 }} />
+        <Button title={t('signup')} onPress={() => navigation.navigate('Signup')} outline big style={{ marginTop: 8 }} />
 
         <Pressable onPress={() => setShowServer(!showServer)} hitSlop={10} style={{ marginTop: 32 }}>
-          <Text style={[s.small, { textAlign: 'center', textDecorationLine: 'underline' }]}>⚙ {t('serverSettings')}</Text>
+          <Text style={{ fontSize: 12, color: C.sub, textAlign: 'center' }}>{t('serverSettings')} ›</Text>
         </Pressable>
         {showServer && (
           <View style={{ marginTop: 12 }}>

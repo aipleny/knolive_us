@@ -1,15 +1,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useLayoutEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { api, ApiError, type NotificationItem } from '../api';
-import { dateTime } from '../i18n';
-import { screenForKind, type ScreenProps } from '../nav';
+import { dateTime, type TKey } from '../i18n';
+import { goTo, screenForKind, type ScreenProps } from '../nav';
 import { useSession } from '../session';
-import { Button, C, s } from '../ui';
-
-const ICON: Record<string, string> = {
-  message: '✉', payslip: '💰', contract: '📄', schedule: '📅', shift_soon: '⏰', no_out: '⚠',
-};
+import { Button, C, s, Text } from '../ui';
 
 export default function NotificationsScreen({ navigation }: ScreenProps<'Notifications'>) {
   const { t } = useSession();
@@ -39,7 +35,7 @@ export default function NotificationsScreen({ navigation }: ScreenProps<'Notific
         <Pressable hitSlop={12} onPress={async () => {
           try { await api.markRead('all'); markLocal('all'); } catch (e) { Alert.alert(t('error'), (e as ApiError).message); }
         }}>
-          <Text style={{ color: C.brand, fontSize: 15, fontWeight: '700' }}>{t('readAll')}</Text>
+          <Text style={{ color: C.brand, fontSize: 14, fontWeight: '700' }}>{t('readAll')}</Text>
         </Pressable>
       ) : null,
     });
@@ -50,9 +46,7 @@ export default function NotificationsScreen({ navigation }: ScreenProps<'Notific
       markLocal([n.id]);
       api.markRead([n.id]).catch(() => null);
     }
-    const screen = screenForKind(n.kind);
-    if (screen === 'Home') navigation.popToTop();
-    else navigation.navigate(screen);
+    goTo(navigation, screenForKind(n.kind));
   }
 
   if (!items) {
@@ -69,7 +63,6 @@ export default function NotificationsScreen({ navigation }: ScreenProps<'Notific
   return (
     <FlatList
       style={s.screen}
-      contentContainerStyle={{ paddingVertical: 8 }}
       data={items}
       keyExtractor={(n) => n.id}
       refreshControl={<RefreshControl refreshing={refreshing}
@@ -79,17 +72,16 @@ export default function NotificationsScreen({ navigation }: ScreenProps<'Notific
       renderItem={({ item: n }) => (
         <Pressable onPress={() => open(n)} accessibilityRole="button"
           style={({ pressed }) => ({
-            flexDirection: 'row', gap: 12, paddingVertical: 14, paddingHorizontal: 20, minHeight: 64,
-            backgroundColor: n.readAt ? C.bg : '#e7eefc', borderBottomWidth: 1, borderBottomColor: C.line,
-            opacity: pressed ? 0.7 : 1,
+            paddingVertical: 12, paddingHorizontal: 16, minHeight: 64,
+            backgroundColor: pressed ? C.line2 : n.readAt ? '#fff' : C.tint, borderBottomWidth: 1, borderBottomColor: C.line2,
           })}>
-          <Text style={{ fontSize: 20 }}>{ICON[n.kind] ?? '•'}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontWeight: n.readAt ? '500' : '800', color: C.text }}>{n.title}</Text>
-            {n.body ? <Text style={{ fontSize: 14, color: C.sub, marginTop: 2 }} numberOfLines={3}>{n.body}</Text> : null}
-            <Text style={[s.small, { fontSize: 12, marginTop: 4 }]}>{dateTime(n.createdAt)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            {!n.readAt && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.danger }} />}
+            <Text style={{ fontSize: 12, color: n.readAt ? C.sub : C.brand, fontWeight: '700' }}>{t(`n_${n.kind}` as TKey)}</Text>
+            <Text style={{ fontSize: 12, color: C.sub }}>· {dateTime(n.createdAt)}</Text>
           </View>
-          {!n.readAt && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: C.brand, marginTop: 6 }} />}
+          <Text style={{ fontSize: 15, fontWeight: n.readAt ? '500' : '700' }}>{n.title}</Text>
+          {n.body ? <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }} numberOfLines={3}>{n.body}</Text> : null}
         </Pressable>
       )}
     />

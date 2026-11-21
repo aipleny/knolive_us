@@ -1,12 +1,12 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useLayoutEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { api, ApiError } from '../api';
 import type { ScreenProps } from '../nav';
 import { useSession } from '../session';
-import { Button, C, s } from '../ui';
+import { Button, C, s, Text } from '../ui';
 
 /** Shows a server-rendered payslip / contract HTML and lets the staff save it as PDF. */
 export default function DocumentScreen({ navigation, route }: ScreenProps<'Document'>) {
