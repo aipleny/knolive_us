@@ -17,8 +17,8 @@ const u = (v, w) => `<span class="u" ${w ? `style="min-width:${w}px"` : ''}>${es
 const box = on => `<span class="box">${on ? '✓' : ''}</span>`;
 function ymd(d, en) {
   if (!d) return en ? '____ . __ . __' : '&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;일';
-  const [y, m, dd] = d.split('-');
-  return en ? `${y}. ${m}. ${dd}` : `${y}년 ${+m}월 ${+dd}일`;
+  const [y, m, dd] = String(d).split('-').map(x => parseInt(x, 10) || 0);
+  return en ? `${y}. ${String(m).padStart(2, '0')}. ${String(dd).padStart(2, '0')}` : `${y}년 ${m}월 ${dd}일`;
 }
 const minsOf = d => { if (!d || !d.start || !d.end) return 0; const [a, b] = [d.start, d.end].map(t => +t.slice(0, 2) * 60 + +t.slice(3)); let s = b - a; if (s <= 0) s += 1440; return Math.max(0, s - brkMins(d)); };
 const hoursText = m => { const h = Math.floor(m / 60), r = m % 60; return r ? `${h}시간 ${r}분` : `${h}시간`; };
@@ -31,9 +31,9 @@ function uniformTime(f) {
 function dayTable(f) {
   return `<table><tr><th></th>${DOW_ORDER.map(d => `<th>${DOW[d]}요일</th>`).join('')}</tr>
   <tr><th>근로시간</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? hoursText(minsOf(f.days[d])) : ''}</td>`).join('')}</tr>
-  <tr><th>시업</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? f.days[d].start : ''}</td>`).join('')}</tr>
-  <tr><th>종업</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? f.days[d].end : ''}</td>`).join('')}</tr>
-  <tr><th>휴게 시간</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? brkStr(f.days[d]) : ''}</td>`).join('')}</tr></table>`;
+  <tr><th>시업</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? esc(f.days[d].start) : ''}</td>`).join('')}</tr>
+  <tr><th>종업</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? esc(f.days[d].end) : ''}</td>`).join('')}</tr>
+  <tr><th>휴게 시간</th>${DOW_ORDER.map(d => `<td>${f.days[d] && f.days[d].start ? esc(brkStr(f.days[d])) : ''}</td>`).join('')}</tr></table>`;
 }
 function wageBlock(f, n) {
   return `<div class="item"><b>${n}. 임 금</b>
@@ -114,7 +114,7 @@ function foreignContract(f) {
   <tr><th class="l">${bl('4. 근로시간', 'Working hours')}</th><td class="l">${uni ? `${esc(uni.start)} ~ ${esc(uni.end)}` : '요일별 근로시간표에 따름 (See the table below)'} &nbsp;/ 주 ${wd.length}일 (${wd.map(d => DOW[d] + ' ' + DOW_EN[d]).join(', ')}), 1주 ${hoursText(wm)} (${(wm / 60).toFixed(1)} hours/week)${uni ? '' : dayTable(f)}</td></tr>
   <tr><th class="l">${bl('5. 휴게시간', 'Recess hours')}</th><td class="l">${uni ? `${esc(brkStr(uni) || '없음 None')} (1일 ${brkMins(uni)}분 / ${brkMins(uni)} minutes per day)` : '요일별 표 참조 / See the table'}</td></tr>
   <tr><th class="l">${bl('6. 휴일', 'Holidays')}</th><td class="l">주휴일 매주 ${esc(f.weeklyHoliday)}요일 (Weekly paid holiday: every ${DOW_EN[DOW.indexOf(f.weeklyHoliday)] || ''})${wm < 900 ? '<br><span class="en">※ 1주 소정근로시간 15시간 미만: 주휴일 미적용 (Less than 15 hours per week: weekly holiday not applicable)</span>' : ''}</td></tr>
-  <tr><th class="l">${bl('7. 임금', 'Payment')}</th><td class="l">1) ${f.payType === 'monthly' ? `월급 Monthly salary: ${Number(f.monthlySalary || 0).toLocaleString('ko-KR')}원 (KRW, 주휴수당 포함 incl. weekly holiday pay)` : `시간급 Hourly wage: ${Number(f.wage || 0).toLocaleString('ko-KR')}원 (KRW)`}<br>&nbsp;&nbsp;&nbsp;월 예상 통상임금(주휴수당 포함) Estimated monthly normal wage (incl. weekly holiday pay): 약 ${monthly.toLocaleString('ko-KR')}원<br>- 상여금 Bonus: ${f.bonus ? esc(f.bonus) + '원' : '없음 (None)'} &nbsp; - 기타 수당 Other allowances: ${f.otherPay ? esc(f.otherPay) : '없음 (None)'}<br>2) 가산임금 Premium pay: 연장 Overtime ${f.rates.overtime}% · 야간 Night ${f.rates.night}% · 휴일 Holiday ${f.rates.holiday}% (8시간 초과 over 8h ${f.rates.holidayOver8}%)<br><span class="en">※ 상시근로자 5인 이상 사업장은 연장·야간·휴일근로에 통상임금의 50% 이상을 가산 지급합니다. Businesses with 5+ employees pay at least 50% extra for overtime, night and holiday work.</span>${f.probation ? '<br>3) 수습기간 중 임금 Wage during probation: ' + esc(f.probationWage || '정상 임금 지급 (Normal wage)') : ''}</td></tr>
+  <tr><th class="l">${bl('7. 임금', 'Payment')}</th><td class="l">1) ${f.payType === 'monthly' ? `월급 Monthly salary: ${Number(f.monthlySalary || 0).toLocaleString('ko-KR')}원 (KRW, 주휴수당 포함 incl. weekly holiday pay)` : `시간급 Hourly wage: ${Number(f.wage || 0).toLocaleString('ko-KR')}원 (KRW)`}<br>&nbsp;&nbsp;&nbsp;월 예상 통상임금(주휴수당 포함) Estimated monthly normal wage (incl. weekly holiday pay): 약 ${monthly.toLocaleString('ko-KR')}원<br>- 상여금 Bonus: ${f.bonus ? esc(f.bonus) + '원' : '없음 (None)'} &nbsp; - 기타 수당 Other allowances: ${f.otherPay ? esc(f.otherPay) : '없음 (None)'}<br>2) 가산임금 Premium pay: 연장 Overtime ${+f.rates.overtime || 0}% · 야간 Night ${+f.rates.night || 0}% · 휴일 Holiday ${+f.rates.holiday || 0}% (8시간 초과 over 8h ${+f.rates.holidayOver8 || 0}%)<br><span class="en">※ 상시근로자 5인 이상 사업장은 연장·야간·휴일근로에 통상임금의 50% 이상을 가산 지급합니다. Businesses with 5+ employees pay at least 50% extra for overtime, night and holiday work.</span>${f.probation ? '<br>3) 수습기간 중 임금 Wage during probation: ' + esc(f.probationWage || '정상 임금 지급 (Normal wage)') : ''}</td></tr>
   <tr><th class="l">${bl('8. 임금지급일', 'Payment date')}</th><td class="l">매월 ${esc(f.payDay)}일 (휴일의 경우 전일 지급) / ${esc(f.payDay)}th day of every month (paid the day before if it falls on a holiday)</td></tr>
   <tr><th class="l">${bl('9. 지급방법', 'Payment methods')}</th><td class="l">${box(f.payMethod === 'direct')} 직접 지급 In person &nbsp; ${box(f.payMethod !== 'direct')} 통장 입금 By direct deposit transfer into the employee's account<br><span class="en">※ 사용자는 근로자 명의로 된 예금통장 및 도장을 관리해서는 안 됨. The employer shall not keep the bankbook and the seal of the employee.</span></td></tr>
   <tr><th class="l">${bl('10. 숙식제공', 'Accommodations and Meals')}</th><td class="l">1) 숙박시설 제공 Accommodation: ${box(f.housing)} 제공 Provided ${box(!f.housing)} 미제공 Not provided${f.housing ? ' — ' + esc(f.housingNote) : ''}<br>2) 식사 제공 Meals: ${box(f.meals)} 제공 Provided ${box(!f.meals)} 미제공 Not provided${f.meals ? ' — ' + esc(f.mealsNote) : ''}<br><span class="en">※ 숙식 비용의 근로자 부담 수준은 사용자와 근로자 간 협의로 결정 (The cost to be paid by the employee is decided by mutual consultation.)</span></td></tr>

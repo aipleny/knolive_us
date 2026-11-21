@@ -134,6 +134,15 @@ test('전체 흐름', async () => {
   assert.match(st1.headers.get('content-security-policy'), /script-src 'self'/);
   assert.equal((await fetch(base + '/owner', { headers: { 'If-None-Match': st1.headers.get('etag') } })).status, 304);
   assert.equal((await fetch(base + '/%2e%2e/server.js')).status, 404);
+  // 보안 점검 반영: 이름 검증, 기간 상한, 터널 경유 시 인증번호 미노출, 문서 스크립트 차단
+  assert.equal((await call('POST', '/api/auth/staff-signup', { storeCode: BN, name: '<img src=x onerror=alert(1)>', loginId: 'xss01', password: 'abcd1234' })).body.code, 'NAME_INVALID');
+  assert.equal((await call('GET', '/api/owner/payroll?from=1000-01-01&to=2000-12-31')).body.code, 'BAD_RANGE');
+  assert.equal((await call('GET', '/api/owner/payroll?from=2026-01-01&to=2027-12-31')).body.code, 'BAD_RANGE');
+  const viaTunnel = await fetch(base + '/api/auth/reset/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.9' }, body: JSON.stringify({ storeCode: BN, loginId: 'boss' }) });
+  const vt = await viaTunnel.json(); assert.equal(vt.devCode, undefined); assert.equal(vt.emailMasked, undefined);
+  const docRes = await fetch(base + `/api/staff/payslips/${slips[0].id}/html`, { headers: { Authorization: 'Bearer ' + tok } });
+  assert.match(docRes.headers.get('content-security-policy'), /script-src 'none'/);
+  assert.equal((await fetch(base + '/api/auth/me')).headers.get('x-content-type-options'), 'nosniff');
   // 직원 토큰으로 사장님 API 불가
   assert.equal((await call('GET', '/api/owner/bootstrap', null, { token: tok })).status, 401);
 });

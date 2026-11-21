@@ -19,7 +19,7 @@ async function renderMessages() {
     <div class="card msg-list"><button class="msg-who ${isNotice ? 'active' : ''}" data-who="notice">📢 ${t('MK_notice')}</button>
       ${staff.map(s => `<button class="msg-who ${MSG_SEL === s.id ? 'active' : ''}" data-who="${s.id}"><span style="color:${esc(s.color || '#2459e0')}">●</span> ${esc(s.name)}${s.status === 'retired' ? ` <small class="muted">(${t('RETIRED')})</small>` : ''}${u[s.id] ? ` <span class="badge">${u[s.id]}</span>` : ''}</button>`).join('')}</div>
     <div>
-      <form class="card section" id="msg-form"><h3>${isNotice ? t('NEW_NOTICE') : t('NEW_MSG_TO', { name: st ? st.name : '' })}</h3>
+      <form class="card section" id="msg-form"><h3>${isNotice ? t('NEW_NOTICE') : t('NEW_MSG_TO', { name: esc(st ? st.name : '') })}</h3>
         <div class="grid g3" style="margin-top:10px">
           <label class="f"><span>${t('X_KIND')}</span><select name="kind" ${isNotice ? 'disabled' : ''}>${(isNotice ? ['notice'] : OWNER_KINDS).map(k => `<option value="${k}">${t('MK_' + k)}</option>`).join('')}</select></label>
           <label class="f"><span id="msg-date-label">${t('RELATED_DATE')}</span><input type="date" name="date"></label>

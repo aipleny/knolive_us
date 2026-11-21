@@ -110,10 +110,14 @@ const shiftOn = (staffId, date) => parseShift(q1('SELECT * FROM shifts WHERE sta
 // ── 쿠키·토큰·요청 ──
 const cookies = req => Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(x => x[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
 function setCookie(res, name, val, maxAge) {
-  const c = [`${name}=${encodeURIComponent(val)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`]; if (SECURE) c.push('Secure');
+  const c = [`${name}=${encodeURIComponent(val)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`]; if (res.req && isHttps(res.req)) c.push('Secure');
   res.setHeader('Set-Cookie', [...(res.getHeader('Set-Cookie') || []), c.join('; ')]);
 }
-const clientIp = req => (TRUST_PROXY && req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+// 프록시 뒤: 가장 오른쪽 항목이 우리 프록시가 본 실제 접속 주소 (왼쪽은 클라이언트가 위조 가능)
+const clientIp = req => (TRUST_PROXY && req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',').map(x => x.trim()).filter(Boolean).pop() : req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+// 개발용 인증번호는 이 컴퓨터에서 직접 접속했을 때만 응답에 넣음 (터널·프록시 경유는 제외)
+const isLocalDirect = req => !req.headers['x-forwarded-for'] && !req.headers['cf-connecting-ip'] && /^(127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress || '');
+const isHttps = req => SECURE || !!req.socket.encrypted || (TRUST_PROXY && String(req.headers['x-forwarded-proto'] || '').split(',').pop().trim() === 'https');
 function session(req) {
   const h = req.headers.authorization || '';
   const p = verify(h.startsWith('Bearer ') ? h.slice(7) : cookies(req).ag_s);
@@ -138,6 +142,7 @@ function kioskOf(req) {
 // ── 시도 제한 ──
 const hits = new Map();
 function limited(key, max, windowMs) {
+  if (hits.size > 50000) hits.clear(); // 메모리 보호
   const now = Date.now(), h = (hits.get(key) || []).filter(x => now - x < windowMs);
   if (h.length >= max) { hits.set(key, h); return Math.ceil((windowMs - (now - h[0])) / 60000); }
   h.push(now); hits.set(key, h); return 0;
@@ -149,11 +154,12 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (!v.so
 class AppError extends Error { constructor(status, code, params) { super(code); this.status = status; this.code = code; this.params = params; } }
 const fail = (status, code, params) => { throw new AppError(status, code, params); };
 const clean = (v, max = 200) => String(v == null ? '' : v).trim().slice(0, max);
-const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+const isDate = d => /^(20\d{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d || '');
+const okRange = (a, b, max = 400) => isDate(a) && isDate(b) && a <= b && (Date.parse(b) - Date.parse(a)) / 86400000 < max;
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(s || '');
 const digits = s => String(s || '').replace(/\D/g, '');
 const cleanBreaks = arr => (Array.isArray(arr) ? arr : []).filter(b => b && isTime(b.start) && isTime(b.end) && b.start !== b.end).slice(0, 4).map(b => ({ start: b.start, end: b.end }));
-const maskEmail = e => String(e).replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.min(5, b.length)) + c);
+const maskEmail = e => String(e).replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(3, Math.min(5, b.length))) + c);
 
 // ── 인증번호 ──
 async function sendCode(kind, target, lang, meta) {
@@ -288,7 +294,7 @@ const compress = (buf, enc, level = 'fast') => enc === 'br'
   : zlib.gzipSync(buf, { level: level === 'fast' ? 6 : 9 });
 function send(res, code, obj, headers = {}) {
   let body = Buffer.from(JSON.stringify(obj));
-  const h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding', ...headers };
+  const h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding', ...SECURITY_HEADERS, ...headers };
   const enc = body.length > 1400 ? pickEncoding(res.req) : null;
   if (enc) { body = compress(body, enc); h['Content-Encoding'] = enc; }
   h['Content-Length'] = body.length;
@@ -355,7 +361,7 @@ route('POST', '/api/auth/verify/send', null, async (c) => {
   if (kind === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) fail(400, 'EMAIL_INVALID');
   const w = limited('send:' + c.ip, 20, 3600000); if (w) fail(429, 'TOO_MANY', { min: w });
   const r = await sendCode(kind, target, c.lang);
-  return { ok: true, id: r.id, devCode: r.devCode };
+  return { ok: true, id: r.id, devCode: isLocalDirect(c.req) ? r.devCode : undefined };
 });
 route('POST', '/api/auth/verify/check', null, (c) => {
   const kind = c.body.kind === 'sms' ? 'sms' : 'email';
@@ -398,7 +404,7 @@ route('POST', '/api/auth/login', null, async (c) => {
     const recent = q1('SELECT id FROM codes WHERE kind=? AND target=? AND used=0 AND expires>? AND created_at>? ORDER BY created_at DESC LIMIT 1', 'login', u.id, Date.now(), Date.now() - 60000);
     if (recent) return { otp: true, otpId: recent.id, emailMasked: maskEmail(u.email), reused: true };
     const r = await sendCode('login', u.id, u.lang, { email: u.email });
-    return { otp: true, otpId: r.id, emailMasked: maskEmail(u.email), devCode: r.devCode };
+    return { otp: true, otpId: r.id, emailMasked: maskEmail(u.email), devCode: isLocalDirect(c.req) ? r.devCode : undefined };
   }
   const s = q1('SELECT * FROM staff WHERE store_id=? AND login_id=?', store.id, loginId);
   if (s && checkPw(b.password, s.pw_salt, s.pw_hash)) {
@@ -425,7 +431,7 @@ route('POST', '/api/auth/reset/send', null, async (c) => {
   const w = limited('reset:' + c.ip, 10, 3600000); if (w) fail(429, 'TOO_MANY', { min: w });
   if (!u) return { ok: true, id: uid() }; // 존재 여부를 드러내지 않음
   const r = await sendCode('reset', u.id, u.lang, { email: u.email });
-  return { ok: true, id: r.id, emailMasked: maskEmail(u.email), devCode: r.devCode };
+  return { ok: true, id: r.id, devCode: isLocalDirect(c.req) ? r.devCode : undefined };
 });
 route('POST', '/api/auth/reset', null, (c) => {
   const { target } = checkCode(c.body.id, 'reset', c.body.code);
@@ -443,13 +449,14 @@ route('POST', '/api/auth/staff-signup', null, (c) => {
   if (!/^[a-zA-Z0-9._-]{4,40}$/.test(loginId)) fail(400, 'ID_INVALID');
   if (String(b.password || '').length < 8) fail(400, 'PW_WEAK');
   if (!clean(b.name)) fail(400, 'REQUIRED', { field: 'name' });
+  if (/[<>]/.test(b.name)) fail(400, 'NAME_INVALID');
   if (q1('SELECT 1 FROM staff WHERE store_id=? AND login_id=?', store.id, loginId) || q1('SELECT 1 FROM users WHERE store_id=? AND login_id=?', store.id, loginId)) fail(409, 'ID_TAKEN');
   const h = hashPw(b.password);
   run('INSERT INTO staff(id,store_id,status,name,phone,login_id,pw_salt,pw_hash,lang,sess_ver,data,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', uid(), store.id, 'pending', clean(b.name, 60), digits(b.phone), loginId, h.salt, h.hash, b.lang === 'en' ? 'en' : 'ko', uid(), JSON.stringify({ nationality: b.lang === 'en' ? 'FOREIGN' : 'KR' }), nowIso());
   audit(store.id, loginId, 'STAFF_SIGNUP');
   return { ok: true, pending: true, message: t(c.lang, 'MSG_PENDING', { store: store.name }) };
 });
-route('POST', '/api/auth/logout', null, (c) => { setCookie(c.res, 'ag_s', '', 0); return { ok: true }; });
+route('POST', '/api/auth/logout', null, (c) => { setCookie(c.res, 'ag_s', '', 0); setCookie(c.res, 'ag_t', '', 0); return { ok: true }; });
 route('GET', '/api/auth/me', null, (c) => {
   const s = session(c.req), k = kioskOf(c.req);
   if (!s) return { role: null, kiosk: !!k };
@@ -522,6 +529,7 @@ route('POST', '/api/kiosk/punch', 'kiosk', (c) => {
   return punch(c.k.storeId, { ...s, lang: c.lang }, c.body.action, 'kiosk');
 });
 route('POST', '/api/kiosk/exit', 'kiosk', (c) => {
+  const w = limited('kexit:' + c.k.storeId, 5, 15 * 60000); if (w) fail(429, 'TOO_MANY', { min: w });
   const u = q1('SELECT * FROM users WHERE store_id=? AND role=?', c.k.storeId, 'owner');
   if (!checkPw(c.body.password, u.pw_salt, u.pw_hash)) fail(401, 'PW_WRONG');
   setCookie(c.res, 'ag_k', '', 0); return { ok: true };
@@ -536,6 +544,8 @@ function publicStaff(s) {
 }
 function writeStaff(storeId, s, b) {
   for (const k of STAFF_FIELDS) if (k in b) s[k] = clean(b[k], k === 'memo' || k === 'jobDesc' ? 1000 : 200);
+  if ('color' in b && !/^#[0-9a-fA-F]{6}$/.test(s.color || '')) s.color = '#1a56c4';
+  if (/[<>]/.test(s.name || '')) fail(400, 'NAME_INVALID');
   for (const k of ['hourlyWage', 'monthlySalary', 'monthlyHours', 'monthlyAllowance', 'nonTaxable', 'incomeTax']) if (k in b) s[k] = Math.max(0, parseInt(b[k]) || 0);
   if ('payType' in b) s.payType = b.payType === 'monthly' ? 'monthly' : 'hourly';
   if ('weeklyHoliday' in b) s.weeklyHoliday = /^[0-6]$/.test(String(b.weeklyHoliday)) ? +b.weeklyHoliday : 0;
@@ -697,7 +707,7 @@ function recRows(storeId, from, to, staffId) {
 }
 route('GET', '/api/owner/records', 'owner', (c) => {
   const from = c.query.get('from'), to = c.query.get('to');
-  if (!isDate(from) || !isDate(to) || from > to) fail(400, 'BAD_RANGE');
+  if (!okRange(from, to)) fail(400, 'BAD_RANGE');
   return { from, to, rows: recRows(c.s.storeId, from, to, c.query.get('staffId')) };
 });
 function recFromBody(r, b) {
@@ -739,7 +749,7 @@ function payrollAll(storeId, from, to, staffId) {
 }
 route('GET', '/api/owner/payroll', 'owner', (c) => {
   const from = c.query.get('from'), to = c.query.get('to');
-  if (!isDate(from) || !isDate(to) || from > to) fail(400, 'BAD_RANGE');
+  if (!okRange(from, to)) fail(400, 'BAD_RANGE');
   const store = q1('SELECT * FROM stores WHERE id=?', c.s.storeId);
   return { from, to, list: payrollAll(c.s.storeId, from, to, c.query.get('staffId')), store: { name: store.name, ownerName: store.owner_name, bizNo: SV.formatBizNo(store.biz_no), address: store.address } };
 });
@@ -747,7 +757,7 @@ route('GET', '/api/owner/payroll', 'owner', (c) => {
 // 엑셀
 route('GET', '/api/owner/export/:kind', 'owner', (c) => {
   const from = c.query.get('from'), to = c.query.get('to'), L = c.lang, T = k => t(L, k);
-  if (!isDate(from) || !isDate(to) || from > to) fail(400, 'BAD_RANGE');
+  if (!okRange(from, to)) fail(400, 'BAD_RANGE');
   const store = q1('SELECT * FROM stores WHERE id=?', c.s.storeId);
   const hhmm2 = iso => iso ? hhmm(iso) : '';
   const hrs = m => Math.round(m / 60 * 100) / 100;
@@ -816,9 +826,11 @@ route('DELETE', '/api/owner/contracts/:id', 'owner', (c) => { const r = q1('SELE
 const OWNER_KINDS = ['notice', 'instruction', 'general', 'warning', 'discipline', 'dismissal'];
 const STAFF_KINDS = ['general', 'suggestion', 'absence_reason', 'schedule_request'];
 const ACK_DEFAULT = new Set(['notice', 'instruction', 'warning', 'discipline', 'dismissal']);
+const ATT_STORE_QUOTA = (+process.env.ALBAGO_ATT_QUOTA_MB || 2048) * 1024 * 1024; // 매장당 첨부 총량
 const ATT_TYPES = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/;
 const sha = b => crypto.createHash('sha256').update(b).digest('hex');
 function createMessage(storeId, m, attachments, ip) {
+  if (Array.isArray(attachments) && attachments.length && q1('SELECT COALESCE(SUM(size),0) n FROM attachments WHERE store_id=?', storeId).n > ATT_STORE_QUOTA) fail(413, 'ATT_QUOTA');
   const atts = (Array.isArray(attachments) ? attachments : []).slice(0, 3).map(a => {
     const type = clean(a.type, 60).toLowerCase(), data = Buffer.from(String(a.data || ''), 'base64');
     if (!ATT_TYPES.test(type)) fail(400, 'ATT_TYPE');
@@ -915,6 +927,7 @@ route('GET', '/api/owner/messages', 'owner', (c) => {
   return { items, unread };
 });
 route('POST', '/api/owner/messages', 'owner', async (c) => {
+  const w = limited('omsg:' + c.s.storeId, 120, 3600000); if (w) fail(429, 'TOO_MANY', { min: w });
   const b = c.body;
   if (!OWNER_KINDS.includes(b.kind)) fail(400, 'BAD_REQUEST');
   if (!clean(b.body)) fail(400, 'REQUIRED', { field: 'body' });
@@ -929,7 +942,7 @@ route('POST', '/api/owner/messages', 'owner', async (c) => {
   return { ok: true, id: row.id };
 }, { maxBody: 22e6 });
 route('GET', '/api/owner/attachments/:id', 'owner', (c) => sendAttachment(c, q1('SELECT * FROM attachments WHERE id=? AND store_id=?', c.p.id, c.s.storeId)));
-route('GET', '/api/owner/messages/verify', 'owner', (c) => verifyChain(c.s.storeId));
+route('GET', '/api/owner/messages/verify', 'owner', (c) => { const w = limited('verify:' + c.s.storeId, 20, 3600000); if (w) fail(429, 'TOO_MANY', { min: w }); return verifyChain(c.s.storeId); });
 
 // 상시근로자 수 계산 (참고용)
 route('GET', '/api/owner/workforce', 'owner', (c) => {
@@ -1035,7 +1048,7 @@ route('GET', '/api/staff/pay', 'staff', (c) => {
 // 임금명세서 확정·발송
 route('POST', '/api/owner/payslips', 'owner', (c) => {
   const b = c.body;
-  if (!isDate(b.from) || !isDate(b.to) || b.from > b.to) fail(400, 'BAD_RANGE');
+  if (!okRange(b.from, b.to)) fail(400, 'BAD_RANGE');
   const store = q1('SELECT * FROM stores WHERE id=?', c.s.storeId);
   const want = Array.isArray(b.staffIds) && b.staffIds.length ? new Set(b.staffIds) : null;
   const list = payrollAll(c.s.storeId, b.from, b.to).filter(p => (!want || want.has(p.staffId)) && p.gross > 0);
@@ -1084,7 +1097,7 @@ function docPage(fn, args, title) {
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title.replace(/[<>&"]/g, '')}</title><style>${css}</style><style>body{background:#fff;margin:0;padding:14px}.doc{max-width:190mm}@media print{body{padding:0}}</style></head><body>${body}</body></html>`;
 }
 function sendHtml(c, html) {
-  c.res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" });
+  c.res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'self'; script-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
   c.res.end(html); return null;
 }
 const payslipDoc = r => { const d = JSON.parse(r.data); return docPage('payslipHTML', [d, d.store, d.payDate, d.bilingual], `임금명세서 ${r.period_from}~${r.period_to}`); };
@@ -1140,6 +1153,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const r = routes.find(x => x.method === req.method && x.re.test(url.pathname));
     if (!r) fail(404, 'NOT_FOUND');
+    if (req.method !== 'GET' && ['cross-site', 'same-site'].includes(req.headers['sec-fetch-site'])) fail(403, 'FORBIDDEN');
     if (req.method !== 'GET' && req.headers.origin) { let h = ''; try { h = new URL(req.headers.origin).host; } catch {} if (h !== req.headers.host) fail(403, 'FORBIDDEN'); }
     const c = { req, res, lang, ip: clientIp(req), query: url.searchParams, p: r.re.exec(url.pathname).groups || {} };
     if (r.auth === 'kiosk') { c.k = kioskOf(req); if (!c.k) fail(401, 'KIOSK_REQUIRED'); }
@@ -1153,5 +1167,6 @@ const server = http.createServer(async (req, res) => {
     console.error(e); send(res, 500, { code: 'SERVER_ERROR', message: t(lang, 'SERVER_ERROR') });
   }
 });
+if (require.main === module && SV.DEV) console.warn('\n  ⚠ 개발 모드(ALBAGO_DEV=1): 인증번호를 화면에 보여 줍니다. 실제 운영에서는 끄세요. 외부(터널) 접속에는 인증번호를 보내지 않습니다.\n');
 if (require.main === module) server.listen(PORT, () => console.log(`알바고 실행 중: http://localhost:${PORT}${SV.DEV ? ' (개발 모드: 인증번호가 이 창에 표시됩니다)' : ''}`));
 module.exports = { server, db, sweep, reminders };

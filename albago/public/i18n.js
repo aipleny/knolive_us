@@ -197,7 +197,7 @@
   // ── v2: 소통 채널 · 월급제 · 가산수당 규칙 ──
   Object.assign(ko, {
     LAND_TITLE: 'ALBAGO 알바고 — 알바 관리를 한 번에',
-    OTP_REUSED: '1분 안에 보낸 인증번호가 있습니다. 메일함의 최근 인증번호를 입력하세요.', TAB_MESSAGES: '소통', CHAIN_CHECK: '기록 무결성 확인', EXCEL_MESSAGES: '엑셀 (소통 기록)', MSG_RECORD_NOTE: '여기 남긴 공지·지시사항·경고·징계·해고 통보와 알바의 건의·결근 사유서는 삭제하거나 고칠 수 없게 보관됩니다. 보낸 시각, 읽은 시각, 확인(수령) 시각이 함께 기록되어 나중에 근거로 쓸 수 있습니다.',
+    NAME_INVALID: '이름에 < 또는 > 기호는 쓸 수 없습니다.', ATT_QUOTA: '매장의 첨부 파일 저장 공간이 가득 찼습니다.', OTP_REUSED: '1분 안에 보낸 인증번호가 있습니다. 메일함의 최근 인증번호를 입력하세요.', TAB_MESSAGES: '소통', CHAIN_CHECK: '기록 무결성 확인', EXCEL_MESSAGES: '엑셀 (소통 기록)', MSG_RECORD_NOTE: '여기 남긴 공지·지시사항·경고·징계·해고 통보와 알바의 건의·결근 사유서는 삭제하거나 고칠 수 없게 보관됩니다. 보낸 시각, 읽은 시각, 확인(수령) 시각이 함께 기록되어 나중에 근거로 쓸 수 있습니다.',
     MK_notice: '공지', MK_instruction: '지시사항', MK_general: '메시지', MK_warning: '경고', MK_discipline: '징계', MK_dismissal: '해고 통보', MK_suggestion: '건의', MK_absence_reason: '결근 사유서', MK_schedule_request: '근무 변경 요청',
     NEW_NOTICE: '전 직원 공지 쓰기', NEW_MSG_TO: '{name}님에게 보내기', RELATED_DATE: '관련 근무일', DISMISS_DATE: '해고일', X_TITLE: '제목', X_BODY: '내용', ATTACH: '첨부(사진·PDF, 3개까지, 각 5MB)', REQUIRE_ACK: '수령 확인 요청',
     SEND: '보내기', MSG_NO_EDIT: '보낸 내용은 수정·삭제할 수 없습니다.', NO_MESSAGES: '아직 기록이 없습니다.', ATT_MAX: '첨부는 3개까지입니다.', ATT_SIZE: '첨부 파일은 각 5MB 이하만 가능합니다.', ATT_TYPE: '사진(JPG·PNG·HEIC·WEBP) 또는 PDF만 첨부할 수 있습니다.',
@@ -223,7 +223,7 @@
   });
   Object.assign(en, {
     LAND_TITLE: 'ALBAGO — part-time staff, all in one',
-    OTP_REUSED: 'A code was sent less than a minute ago. Enter the latest code from your inbox.', TAB_MESSAGES: 'Messages', CHAIN_CHECK: 'Verify records', EXCEL_MESSAGES: 'Excel (messages)', MSG_RECORD_NOTE: 'Notices, instructions, warnings, disciplinary notices, dismissal notices and staff suggestions or absence statements sent here cannot be deleted or edited. Sent, read and acknowledged times are recorded so they can serve as evidence later.',
+    NAME_INVALID: 'Names cannot contain < or >.', ATT_QUOTA: "The store's attachment storage is full.", OTP_REUSED: 'A code was sent less than a minute ago. Enter the latest code from your inbox.', TAB_MESSAGES: 'Messages', CHAIN_CHECK: 'Verify records', EXCEL_MESSAGES: 'Excel (messages)', MSG_RECORD_NOTE: 'Notices, instructions, warnings, disciplinary notices, dismissal notices and staff suggestions or absence statements sent here cannot be deleted or edited. Sent, read and acknowledged times are recorded so they can serve as evidence later.',
     MK_notice: 'Notice', MK_instruction: 'Instruction', MK_general: 'Message', MK_warning: 'Warning', MK_discipline: 'Disciplinary notice', MK_dismissal: 'Notice of dismissal', MK_suggestion: 'Suggestion', MK_absence_reason: 'Absence statement', MK_schedule_request: 'Schedule request',
     NEW_NOTICE: 'Write a notice to all staff', NEW_MSG_TO: 'Send to {name}', RELATED_DATE: 'Related work date', DISMISS_DATE: 'Dismissal date', X_TITLE: 'Title', X_BODY: 'Message', ATTACH: 'Attachments (photo/PDF, up to 3, 5 MB each)', REQUIRE_ACK: 'Request acknowledgement',
     SEND: 'Send', MSG_NO_EDIT: 'Sent messages cannot be edited or deleted.', NO_MESSAGES: 'No messages yet.', ATT_MAX: 'Up to 3 attachments.', ATT_SIZE: 'Each attachment must be 5 MB or less.', ATT_TYPE: 'Only photos (JPG, PNG, HEIC, WEBP) or PDF can be attached.',
