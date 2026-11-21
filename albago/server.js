@@ -75,9 +75,11 @@ CREATE INDEX IF NOT EXISTS notifications_staff ON notifications(staff_id, create
 CREATE TABLE IF NOT EXISTS notif_sent(key TEXT PRIMARY KEY, at TEXT);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT, at TEXT, who TEXT, what TEXT);`);
 for (const col of ['shared_at', 'received_at', 'viewed_at']) { try { db.exec(`ALTER TABLE contracts ADD COLUMN ${col} TEXT`); } catch {} }
-const q = (sql, ...a) => db.prepare(sql).all(...a);
-const q1 = (sql, ...a) => db.prepare(sql).get(...a);
-const run = (sql, ...a) => db.prepare(sql).run(...a);
+// 요청에서 온 값이 비었거나(undefined) 객체여도 SQLite 오류(500)가 나지 않게 정리
+const bind = a => a.map(v => v === undefined ? null : v !== null && typeof v === 'object' && !(v instanceof Uint8Array) ? String(v) : typeof v === 'boolean' ? Number(v) : v);
+const q = (sql, ...a) => db.prepare(sql).all(...bind(a));
+const q1 = (sql, ...a) => db.prepare(sql).get(...bind(a));
+const run = (sql, ...a) => db.prepare(sql).run(...bind(a));
 const tx = fn => { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } };
 const nowIso = () => new Date().toISOString();
 const audit = (storeId, who, what) => run('INSERT INTO audit(store_id,at,who,what) VALUES(?,?,?,?)', storeId, nowIso(), who, what);

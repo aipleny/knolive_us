@@ -125,6 +125,9 @@ test('전체 흐름', async () => {
   }
   assert.ok((await call('POST', '/api/staff/notifications/read', { all: true }, { token: tok })).body.ok);
   assert.equal((await call('GET', '/api/staff/notifications', null, { token: tok })).body.unread, 0);
+  // 값이 빠진 요청은 500이 아니라 400 대 오류
+  assert.equal((await call('POST', '/api/auth/otp', {})).status, 400);
+  assert.equal((await call('POST', '/api/owner/records', { staffId: { x: 1 } })).status, 400);
   // 직원 토큰으로 사장님 API 불가
   assert.equal((await call('GET', '/api/owner/bootstrap', null, { token: tok })).status, 401);
 });
